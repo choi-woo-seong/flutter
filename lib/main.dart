@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:mo/screens/home_page.dart';
+import 'package:msy/screens/home_page.dart';
 import 'screens/products_page.dart';
 import 'screens/product_detail_page.dart';
 import 'screens/login_page.dart';
 import 'screens/signup_page.dart';
+import 'screens/signup_email_page.dart';
+import 'screens/signup_password_page.dart';
+import 'screens/signup_end_page.dart';
 import 'screens/forgot_password_page.dart';
 import 'screens/facility_detail_page.dart';
 import 'screens/facility_review_page.dart';
@@ -11,9 +14,19 @@ import 'screens/facility_question_page.dart';
 import 'screens/facility_cost_page.dart';
 import 'screens/favorites_page.dart';
 import 'screens/cart_page.dart';
+import 'screens/cart_success_page.dart';
 import 'screens/notices_page.dart';
+import 'screens/notice_detail_page.dart';
+import 'screens/videos_page.dart';
+import 'screens/facility_list_page.dart';
+import 'screens/care_grade_test_page.dart';
 
 void main() {
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    print('❌ Flutter Error: ${details.exception}');
+  };
+
   runApp(MyApp());
 }
 
@@ -22,6 +35,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: '요양시설 정보 서비스',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
@@ -32,14 +46,36 @@ class MyApp extends StatelessWidget {
         '/product-detail': (context) => ProductDetailPage(),
         '/login': (context) => LoginPage(),
         '/signup': (context) => SignupPage(),
+        '/signup-password': (context) => SignupPasswordPage(),
+        '/signup-end': (context) => SignupEndPage(),
         '/forgot-password': (context) => ForgotPasswordPage(),
+        '/facility-list': (context) => FacilityListPage(category: '요양병원'),
         '/facility-detail': (context) => FacilityDetailPage(),
         '/facility-review': (context) => FacilityReviewPage(),
         '/facility-question': (context) => FacilityQuestionPage(),
         '/facility-cost': (context) => FacilityCostPage(),
         '/favorites': (context) => FavoritesPage(),
         '/cart': (context) => CartPage(),
+        '/cart-success': (context) => CartSuccessPage(),
         '/notices': (context) => NoticesPage(),
+        '/videos': (context) => VideosPage(),
+        '/care-test': (context) => CareGradeTestPage(),
+      },
+      onGenerateRoute: (settings) {
+        if (settings.name == '/signup-email') {
+          final email = settings.arguments as String;
+          return MaterialPageRoute(
+            builder: (context) => SignupEmailPage(email: email),
+          );
+        }
+
+        if (settings.name == '/notices-detail') {
+          final notice = settings.arguments as Map<String, dynamic>;
+          return MaterialPageRoute(
+            builder: (context) => NoticeDetailPage(notice: notice),
+          );
+        }
+        return null;
       },
     );
   }

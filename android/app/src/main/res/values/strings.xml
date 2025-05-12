@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">msy</string> <!-- ← 여기 원하는 앱 이름으로 바꾸면 됨 -->
+</resources>

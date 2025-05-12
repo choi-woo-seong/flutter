@@ -7,13 +7,24 @@ class SignupForm extends StatefulWidget {
 
 class _SignupFormState extends State<SignupForm> {
   final _formKey = GlobalKey<FormState>();
-  String name = '';
+  int currentStep = 0;
+
+  String username = '';
   String email = '';
+  String phone = '';
+  String code = '';
   String password = '';
   String confirmPassword = '';
   String error = '';
 
-  void handleSignup() {
+  void nextStep() {
+    if (_formKey.currentState!.validate()) {
+      _formKey.currentState!.save();
+      setState(() => currentStep++);
+    }
+  }
+
+  void completeSignup() {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
       if (password != confirmPassword) {
@@ -21,57 +32,178 @@ class _SignupFormState extends State<SignupForm> {
         return;
       }
       setState(() => error = "");
-      // 실제 회원가입 API 연동은 여기에서 처리
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("회원가입 완료: $email")),
+        SnackBar(content: Text("회원가입이 완료되었습니다.")),
       );
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Form(
-      key: _formKey,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+  List<String> stepTitles = ["기본 정보", "이메일 인증", "비밀번호 설정", "가입 완료"];
+
+  List<Widget> buildStepContent() {
+    return [
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (error.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(error, style: TextStyle(color: Colors.red)),
-            ),
-          TextFormField(
-            decoration: InputDecoration(labelText: "이름"),
-            onSaved: (value) => name = value ?? '',
-            validator: (value) => value == null || value.isEmpty ? "이름을 입력하세요" : null,
+          _buildLabel("아이디"),
+          _buildTextField(
+            hint: "아이디 (4자 이상)",
+            onSave: (val) => username = val!,
+            validator: (val) => val == null || val.length < 4 ? "4자 이상 입력하세요" : null,
           ),
-          SizedBox(height: 12),
-          TextFormField(
-            decoration: InputDecoration(labelText: "이메일"),
+          SizedBox(height: 16),
+          _buildLabel("이메일"),
+          _buildTextField(
+            hint: "이메일 입력",
             keyboardType: TextInputType.emailAddress,
-            onSaved: (value) => email = value ?? '',
-            validator: (value) => value == null || value.isEmpty ? "이메일을 입력하세요" : null,
+            onSave: (val) => email = val!,
+            validator: (val) => val == null || val.isEmpty ? "이메일 입력" : null,
           ),
-          SizedBox(height: 12),
-          TextFormField(
-            decoration: InputDecoration(labelText: "비밀번호"),
-            obscureText: true,
-            onSaved: (value) => password = value ?? '',
-            validator: (value) => value == null || value.length < 6 ? "6자 이상 입력하세요" : null,
-          ),
-          SizedBox(height: 12),
-          TextFormField(
-            decoration: InputDecoration(labelText: "비밀번호 확인"),
-            obscureText: true,
-            onSaved: (value) => confirmPassword = value ?? '',
-            validator: (value) => value == null || value.isEmpty ? "비밀번호 확인을 입력하세요" : null,
-          ),
-          SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: handleSignup,
-            child: Text("회원가입"),
+          SizedBox(height: 16),
+          _buildLabel("휴대폰 번호"),
+          _buildTextField(
+            hint: "010-1234-5678",
+            keyboardType: TextInputType.phone,
+            onSave: (val) => phone = val!,
+            validator: (val) => val == null || val.isEmpty ? "번호 입력" : null,
           ),
         ],
+      ),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildLabel("인증번호 입력"),
+          _buildTextField(
+            hint: "6자리 숫자",
+            onSave: (val) => code = val!,
+            validator: (val) => val == null || val.length != 6 ? "6자리 입력" : null,
+          ),
+        ],
+      ),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildLabel("비밀번호"),
+          _buildTextField(
+            hint: "비밀번호 입력",
+            obscure: true,
+            onSave: (val) => password = val!,
+            validator: (val) => val == null || val.length < 6 ? "6자 이상 입력" : null,
+          ),
+          SizedBox(height: 16),
+          _buildLabel("비밀번호 확인"),
+          _buildTextField(
+            hint: "비밀번호 확인",
+            obscure: true,
+            onSave: (val) => confirmPassword = val!,
+            validator: (val) => val == null || val.isEmpty ? "확인 입력" : null,
+          ),
+        ],
+      ),
+      Center(
+        child: Column(
+          children: [
+            Icon(Icons.check_circle, size: 80, color: Colors.blue),
+            SizedBox(height: 16),
+            Text("회원가입이 완료되었습니다!", style: TextStyle(fontSize: 16)),
+          ],
+        ),
+      ),
+    ];
+  }
+
+  Widget _buildTextField({
+    String? hint,
+    bool obscure = false,
+    TextInputType? keyboardType,
+    FormFieldValidator<String>? validator,
+    FormFieldSetter<String>? onSave,
+  }) {
+    return TextFormField(
+      decoration: InputDecoration(
+        hintText: hint,
+        filled: true,
+        fillColor: Colors.grey[100],
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      obscureText: obscure,
+      keyboardType: keyboardType,
+      validator: validator,
+      onSaved: onSave,
+    );
+  }
+
+  Widget _buildLabel(String text) =>
+      Text(text, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500));
+
+  Widget _buildStepIndicator() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      children: List.generate(
+        4,
+            (index) => _buildStepCircle(index + 1, index <= currentStep, stepTitles[index]),
+      ),
+    );
+  }
+
+  Widget _buildStepCircle(int step, bool isActive, String label) {
+    return Column(
+      children: [
+        CircleAvatar(
+          backgroundColor: isActive ? Colors.blue : Colors.grey[300],
+          radius: 14,
+          child: Text(
+            '$step',
+            style: TextStyle(color: isActive ? Colors.white : Colors.black54, fontSize: 12),
+          ),
+        ),
+        SizedBox(height: 4),
+        Text(label, style: TextStyle(fontSize: 12, color: Colors.black87)),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final content = buildStepContent();
+
+    return SingleChildScrollView(
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(color: Colors.grey.withOpacity(0.08), blurRadius: 6, offset: Offset(0, 2)),
+          ],
+        ),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildStepIndicator(),
+              SizedBox(height: 16),
+              if (error.isNotEmpty)
+                Text(error, style: TextStyle(color: Colors.red)),
+              SizedBox(height: 8),
+              content[currentStep],
+              SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: currentStep == 3 ? completeSignup : nextStep,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: Text(
+                  currentStep == 3 ? "완료" : "다음",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

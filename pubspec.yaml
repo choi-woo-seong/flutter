@@ -1,4 +1,4 @@
-name: mo
+name: msy
 description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -32,10 +32,15 @@ dependencies:
     sdk: flutter
   intl: ^0.18.1
   shared_preferences: ^2.2.2
+  youtube_player_flutter: ^9.1.1
+  flutter_inappwebview: ^6.1.5
+  google_maps_flutter: ^2.5.0
+
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
+  url_launcher: ^6.3.1
 
 dev_dependencies:
   flutter_test:
@@ -58,6 +63,9 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+  assets:
+    # 폴더 단위 등록
+    - assets/images/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

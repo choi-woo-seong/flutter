@@ -42,64 +42,109 @@ class _FacilityCostPageState extends State<FacilityCostPage> {
   @override
   Widget build(BuildContext context) {
     final facilityType = widget.facilityId == "2" ? "요양원" : "요양병원";
-
-    final selectedRoomData = roomOptions.firstWhere(
-          (room) => room['value'] == selectedRoom,
-    );
-
+    final selectedRoomData = roomOptions.firstWhere((room) => room['value'] == selectedRoom);
     final int ownBurden = selectedRoomData['price'] as int;
     final int totalCost = ownBurden + salaryCost;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text("이용 요금 안내"),
+        title: Text("예상비용 살펴보기"),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "$facilityType 시설",
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 16),
-            Text("병실 유형 선택", style: TextStyle(fontSize: 16)),
-            DropdownButton<String>(
-              value: selectedRoom,
-              items: roomOptions.map((room) {
-                return DropdownMenuItem<String>(
-                  value: room['value'] as String,
-                  child: Text(room['label'] as String),
-                );
-              }).toList(),
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() {
-                    selectedRoom = value;
-                  });
-                }
-              },
+              "아래 요양병원 비용은 보험범위 및 제재 적용여부에 따라 달라질 수 있으며 비급여항목은 제외된 예상비용입니다.",
+              style: TextStyle(color: Colors.grey[700]),
             ),
             SizedBox(height: 24),
-            Card(
-              elevation: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("급여 비용: ${formatWon(salaryCost)}"),
-                    SizedBox(height: 8),
-                    Text("본인부담금: ${formatWon(ownBurden)}"),
-                    Divider(height: 24),
-                    Text(
-                      "총 비용: ${formatWon(totalCost)}",
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+
+            // 병실 유형 선택
+            Column(
+              children: roomOptions.map((room) {
+                final isSelected = room['value'] == selectedRoom;
+                return Card(
+                  shape: RoundedRectangleBorder(
+                    side: BorderSide(
+                      color: isSelected ? Colors.blue : Colors.grey.shade300,
+                      width: isSelected ? 2 : 1,
                     ),
-                  ],
-                ),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: RadioListTile<String>(
+                    value: room['value'] as String,
+                    groupValue: selectedRoom,
+                    activeColor: Colors.blue,
+                    title: Text(room['label'] as String, style: TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(room['sub'] as String),
+                    secondary: Text(formatWon(room['price'] as int)),
+                    onChanged: (value) {
+                      setState(() {
+                        selectedRoom = value!;
+                      });
+                    },
+                  ),
+                );
+              }).toList(),
+            ),
+
+            SizedBox(height: 24),
+            Divider(),
+            Text("급여 입원비", style: TextStyle(fontWeight: FontWeight.bold)),
+            SizedBox(height: 4),
+            Text("보험에 따른 본인부담금"),
+            SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text("급여 입원비"),
+                Text(formatWon(salaryCost)),
+              ],
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text("본인 부담금"),
+                Text(formatWon(ownBurden)),
+              ],
+            ),
+            Divider(height: 32),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text("예상 월입원비", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Text("월 ${formatWon(totalCost)}", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue)),
+              ],
+            ),
+            SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(8),
               ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline, color: Colors.grey[700]),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "자세한 간병비는 시설에 문의해주세요.\n해당 병원의 상황에 따라 달라질 수 있습니다.",
+                      style: TextStyle(fontSize: 13, color: Colors.grey[800]),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 16),
+            Text(
+              "예상비용은 실제 결제금액과 차이가 있을 수 있습니다.\n반드시 해당 병원과 상담 후 정확한 비용을 확인하시기 바랍니다.",
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
             ),
           ],
         ),

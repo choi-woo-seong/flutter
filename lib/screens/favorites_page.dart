@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/bottom_navigation.dart';
 
 class FavoritesPage extends StatefulWidget {
   @override
@@ -18,13 +19,13 @@ class _FavoritesPageState extends State<FavoritesPage> {
         favorites = [
           {
             'id': '1',
-            'name': '실버워커 (바퀴X) 노인용 보행기',
-            'image': 'assets/images/supportive-stroll.png',
+            'name': '포레스토 요양병원',
+            'image': 'assets/images/modern_hospital.png',
           },
           {
             'id': '2',
-            'name': '의료용 실버워커',
-            'image': 'assets/images/elderly-woman-using-walker.png',
+            'name': '행복 요양원',
+            'image': 'assets/images/modern_nursing.png',
           },
         ];
       });
@@ -41,19 +42,20 @@ class _FavoritesPageState extends State<FavoritesPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text("전체 삭제"),
-        content: Text("찜한 모든 항목을 삭제하시겠습니까?"),
+        backgroundColor: Colors.white,
+        title: Text("전체 삭제", style: TextStyle(color: Colors.black)),
+        content: Text("찜한 모든 항목을 삭제하시겠습니까?", style: TextStyle(color: Colors.black)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text("취소"),
+            child: Text("취소", style: TextStyle(color: Colors.black)),
           ),
           TextButton(
             onPressed: () {
               setState(() => favorites.clear());
               Navigator.pop(context);
             },
-            child: Text("삭제"),
+            child: Text("삭제", style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -65,6 +67,8 @@ class _FavoritesPageState extends State<FavoritesPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text("찜한 목록"),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
         actions: [
           IconButton(
             icon: Icon(Icons.delete),
@@ -81,6 +85,8 @@ class _FavoritesPageState extends State<FavoritesPage> {
         itemBuilder: (context, index) {
           final item = favorites[index];
           return Card(
+            color: Colors.white,
+            margin: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             child: ListTile(
               leading: Image.asset(item['image']!, width: 50, height: 50),
               title: Text(item['name']!),
@@ -93,17 +99,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
           );
         },
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        items: [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "홈"),
-          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: "찜"),
-          BottomNavigationBarItem(icon: Icon(Icons.shopping_cart), label: "장바구니"),
-        ],
-        currentIndex: 1,
-        onTap: (index) {
-          // 페이지 이동 처리
-        },
-      ),
+      bottomNavigationBar: BottomNavigation(currentIndex: 1),
     );
   }
 }

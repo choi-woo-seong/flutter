@@ -6,121 +6,101 @@ class ForgotPasswordPage extends StatefulWidget {
 }
 
 class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
-  int step = 1;
   String email = '';
-  String verificationCode = '';
-  String newPassword = '';
-  String confirmPassword = '';
   String error = '';
-  bool isLoading = false;
-  bool isCodeSent = false;
 
-  void handleEmailSubmit() {
+  void handleSubmit() {
     if (email.isEmpty) {
       setState(() => error = "이메일을 입력해주세요.");
       return;
     }
-    setState(() {
-      isCodeSent = true;
-      step = 2;
-      error = '';
-    });
-  }
-
-  void handleCodeVerify() {
-    if (verificationCode.isEmpty) {
-      setState(() => error = "인증번호를 입력해주세요.");
-      return;
-    }
-    setState(() {
-      step = 3;
-      error = '';
-    });
-  }
-
-  void handlePasswordReset() {
-    if (newPassword.isEmpty || confirmPassword.isEmpty) {
-      setState(() => error = "비밀번호를 모두 입력해주세요.");
-      return;
-    }
-    if (newPassword != confirmPassword) {
-      setState(() => error = "비밀번호가 일치하지 않습니다.");
-      return;
-    }
-
-    // 비밀번호 재설정 요청 보내기 (추후 API 연동)
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("비밀번호가 재설정되었습니다.")));
-    Navigator.pop(context);
-  }
-
-  Widget buildStepContent() {
-    switch (step) {
-      case 1:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("이메일 입력", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            TextField(
-              onChanged: (val) => email = val,
-              decoration: InputDecoration(labelText: "이메일 주소"),
-            ),
-            SizedBox(height: 12),
-            ElevatedButton(onPressed: handleEmailSubmit, child: Text("인증번호 받기")),
-          ],
-        );
-      case 2:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("인증번호 입력", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            TextField(
-              onChanged: (val) => verificationCode = val,
-              decoration: InputDecoration(labelText: "인증번호"),
-            ),
-            SizedBox(height: 12),
-            ElevatedButton(onPressed: handleCodeVerify, child: Text("다음")),
-          ],
-        );
-      case 3:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("새 비밀번호 설정", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            TextField(
-              obscureText: true,
-              onChanged: (val) => newPassword = val,
-              decoration: InputDecoration(labelText: "새 비밀번호"),
-            ),
-            SizedBox(height: 8),
-            TextField(
-              obscureText: true,
-              onChanged: (val) => confirmPassword = val,
-              decoration: InputDecoration(labelText: "비밀번호 확인"),
-            ),
-            SizedBox(height: 12),
-            ElevatedButton(onPressed: handlePasswordReset, child: Text("비밀번호 재설정")),
-          ],
-        );
-      default:
-        return Container();
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("인증 코드가 이메일로 전송되었습니다.")),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("비밀번호 찾기")),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: ListView(
-          children: [
-            if (error.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Text(error, style: TextStyle(color: Colors.red)),
-              ),
-            buildStepContent(),
-          ],
+      appBar: AppBar(
+        title: Text("비밀번호 찾기"),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 0.5,
+      ),
+      backgroundColor: Colors.grey[100],
+      body: Center(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(24),
+          child: Container(
+            constraints: BoxConstraints(maxWidth: 400),
+            padding: EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black12,
+                  blurRadius: 6,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text("비밀번호 찾기",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                SizedBox(height: 12),
+                Text(
+                  "가입 시 등록한 이메일을 입력하시면 비밀번호 재설정 안내 메일을 보내드립니다.",
+                  style: TextStyle(fontSize: 13, color: Colors.black54),
+                ),
+                SizedBox(height: 24),
+                Text("이메일", style: TextStyle(fontSize: 12, color: Colors.black54)),
+                SizedBox(height: 6),
+                TextField(
+                  onChanged: (val) => email = val,
+                  decoration: InputDecoration(
+                    hintText: "이메일을 입력하세요",
+                    filled: true,
+                    fillColor: Colors.grey[100],
+                    contentPadding:
+                    EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                  ),
+                ),
+                if (error.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(error, style: TextStyle(color: Colors.red)),
+                  ),
+                SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: handleSubmit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  child: Text("인증 코드 받기"),
+                ),
+                SizedBox(height: 16),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text("로그인 페이지로 돌아가기",
+                      style: TextStyle(color: Colors.blue, fontSize: 13)),
+                )
+              ],
+            ),
+          ),
         ),
       ),
     );
