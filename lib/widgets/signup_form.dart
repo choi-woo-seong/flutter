@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class SignupForm extends StatefulWidget {
   @override
@@ -24,17 +26,35 @@ class _SignupFormState extends State<SignupForm> {
     }
   }
 
-  void completeSignup() {
+  Future<void> completeSignup() async {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
+
       if (password != confirmPassword) {
         setState(() => error = "비밀번호가 일치하지 않습니다.");
         return;
       }
-      setState(() => error = "");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("회원가입이 완료되었습니다.")),
+
+      final url = Uri.parse("http://192.168.0.67:8081/api/auth/register");
+      final response = await http.post(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "userId": username,
+          "password": password,
+          "email": email,
+          "phone": phone,
+        }),
       );
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("회원가입 성공")),
+        );
+        Navigator.pushReplacementNamed(context, '/login');
+      } else {
+        setState(() => error = "회원가입 실패: ${response.body}");
+      }
     }
   }
 
@@ -88,7 +108,7 @@ class _SignupFormState extends State<SignupForm> {
             hint: "비밀번호 입력",
             obscure: true,
             onSave: (val) => password = val!,
-            validator: (val) => val == null || val.length < 6 ? "6자 이상 입력" : null,
+            validator: (val) => val == null || val.length < 8 ? "8자 이상 입력" : null,
           ),
           SizedBox(height: 16),
           _buildLabel("비밀번호 확인"),

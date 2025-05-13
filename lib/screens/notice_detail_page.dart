@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 class NoticeDetailPage extends StatelessWidget {
   final Map<String, dynamic> notice;
@@ -7,6 +8,12 @@ class NoticeDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ createdAt을 DateTime으로 파싱 후 포맷
+    final rawDate = notice['created_at'] ?? notice['createdAt'] ?? '';
+    final String formattedDate = rawDate.isNotEmpty
+        ? DateFormat('yyyy.MM.dd HH:mm').format(DateTime.parse(rawDate))
+        : '-';
+
     return Scaffold(
       appBar: AppBar(
         title: Text("공지사항"),
@@ -26,13 +33,12 @@ class NoticeDetailPage extends StatelessWidget {
             border: TableBorder.all(color: Colors.grey.shade300),
             children: [
               _buildRow("제목", notice['title'] ?? "제목 없음"),
-              _buildRow("등록일", notice['date'] ?? "-"),
+              _buildRow("등록일", formattedDate),
               _buildRow("조회수", "${notice['views'] ?? 0}"),
               TableRow(
                 children: [
                   Container(
                     padding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                    // ⛔ 회색 제거 → 흰색
                     color: Colors.white,
                     child: Text("내용", style: TextStyle(fontWeight: FontWeight.bold)),
                   ),
@@ -57,7 +63,7 @@ class NoticeDetailPage extends StatelessWidget {
       children: [
         Container(
           padding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          color: Colors.white, // ⛔ 회색 제거 → 흰색
+          color: Colors.white,
           child: Text(label, style: TextStyle(fontWeight: FontWeight.bold)),
         ),
         Container(

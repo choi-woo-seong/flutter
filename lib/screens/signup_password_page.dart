@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
 class SignupPasswordPage extends StatefulWidget {
   @override
@@ -11,7 +13,7 @@ class _SignupPasswordPageState extends State<SignupPasswordPage> {
   String confirmPassword = '';
   String error = '';
 
-  void handleSubmit() {
+  void handleSubmit() async {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
       if (password != confirmPassword) {
@@ -19,8 +21,27 @@ class _SignupPasswordPageState extends State<SignupPasswordPage> {
         return;
       }
 
-      // TODO: 비밀번호 저장 및 서버 전송
-      Navigator.pushNamed(context, '/signup-end');
+      final args = ModalRoute.of(context)!.settings.arguments as Map<String, String>;
+      final username = args['username']!;
+      final email = args['email']!;
+      final phone = args['phone']!;
+
+      final response = await http.post(
+        Uri.parse("http://192.168.0.67:8081/api/auth/signup"),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "userId": username,
+          "email": email,
+          "phone": phone,
+          "password": password,
+        }),
+      );
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        Navigator.pushNamed(context, '/signup-end');
+      } else {
+        setState(() => error = "회원가입 실패: ${response.body}");
+      }
     }
   }
 
@@ -58,19 +79,14 @@ class _SignupPasswordPageState extends State<SignupPasswordPage> {
                   TextFormField(
                     obscureText: true,
                     decoration: InputDecoration(
-                      hintText: "비밀번호 입력 (6자 이상)",
+                      hintText: "비밀번호 입력 (8자 이상)",
                       filled: true,
                       fillColor: Colors.grey[100],
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      focusedBorder: OutlineInputBorder( // ✅ 포커스 시 파란 테두리
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.blue),
                       ),
                     ),
-                    validator: (val) => val != null && val.length >= 6 ? null : "비밀번호는 6자 이상 입력하세요",
+                    validator: (val) => val != null && val.length >= 8 ? null : "8자 이상 입력",
                     onSaved: (val) => password = val ?? '',
                   ),
                   SizedBox(height: 16),
@@ -84,14 +100,9 @@ class _SignupPasswordPageState extends State<SignupPasswordPage> {
                       fillColor: Colors.grey[100],
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      focusedBorder: OutlineInputBorder( // ✅ 포커스 시 파란 테두리
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.blue),
                       ),
                     ),
-                    validator: (val) => val != null && val.isNotEmpty ? null : "비밀번호 확인을 입력하세요",
+                    validator: (val) => val != null && val.isNotEmpty ? null : "확인 입력",
                     onSaved: (val) => confirmPassword = val ?? '',
                   ),
                   if (error.isNotEmpty) ...[

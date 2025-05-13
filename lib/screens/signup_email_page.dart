@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 class SignupEmailPage extends StatefulWidget {
-  final String email; // 이전 페이지에서 넘긴 이메일
+  final Map<String, dynamic> userData;
 
-  SignupEmailPage({required this.email});
+  const SignupEmailPage({required this.userData});
 
   @override
   _SignupEmailPageState createState() => _SignupEmailPageState();
@@ -16,19 +16,32 @@ class _SignupEmailPageState extends State<SignupEmailPage> {
   void handleVerify() {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
-      // TODO: 인증 코드 검증 로직 또는 서버 요청
+
+      // 실제로는 verificationCode 검증 필요 (추후 구현 예정)
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("인증 성공"),
-        backgroundColor: Colors.blue,
+        SnackBar(
+          content: Text("인증 성공"),
+          backgroundColor: Colors.blue,
         ),
       );
-      // 다음 페이지로 이동
-      Navigator.pushNamed(context, '/signup-password');
+
+      // 다음 단계로 이동하면서 전체 데이터 전달
+      Navigator.pushNamed(
+        context,
+        '/signup-password',
+        arguments: {
+          'username': widget.userData['username'],
+          'email': widget.userData['email'],
+          'phone': widget.userData['phone'],
+        },
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final email = widget.userData['email'];
+
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(),
@@ -57,7 +70,7 @@ class _SignupEmailPageState extends State<SignupEmailPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    "입력하신 이메일로 인증번호가 발송되었습니다.\n이메일 주소: ${widget.email}",
+                    "입력하신 이메일로 인증번호가 발송되었습니다.\n이메일 주소: $email",
                     style: TextStyle(fontSize: 13),
                   ),
                   SizedBox(height: 24),
@@ -72,12 +85,13 @@ class _SignupEmailPageState extends State<SignupEmailPage> {
                         borderRadius: BorderRadius.circular(8),
                         borderSide: BorderSide(color: Colors.grey.shade300),
                       ),
-                      focusedBorder: OutlineInputBorder( // ✅ 포커스 시 파란 테두리
+                      focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                         borderSide: BorderSide(color: Colors.blue),
                       ),
                     ),
-                    validator: (value) => value != null && value.length == 6 ? null : "6자리 인증번호를 입력하세요.",
+                    validator: (value) =>
+                    value != null && value.length == 6 ? null : "6자리 인증번호를 입력하세요.",
                     onSaved: (val) => verificationCode = val ?? '',
                   ),
                   SizedBox(height: 24),

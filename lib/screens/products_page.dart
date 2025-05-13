@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 
 class ProductsPage extends StatefulWidget {
   @override
@@ -6,58 +9,65 @@ class ProductsPage extends StatefulWidget {
 }
 
 class _ProductsPageState extends State<ProductsPage> {
-  List<Map<String, String>> products = [];
+  List<Map<String, dynamic>> products = [];
   bool showFilters = false;
   String selectedSort = "인기순";
   String selectedCategory = "전체";
-  String searchQuery = ""; // ✅ 검색어 상태 추가
+  String searchQuery = "";
 
   final List<String> sortOptions = ["인기순", "최신순", "가격 낮은순", "가격 높은순"];
-  final List<String> categories = ["전체", "보행보조기", "침대", "목욕용품", "지팡이", "휠체어"];
+  final List<String> categories = ["전체", "이동보조", "욕실용품", "침실용품", "일상생활용품", "의료용품"];
+  final numberFormat = NumberFormat("#,###", "ko_KR");
 
   @override
   void initState() {
     super.initState();
-    Future.delayed(Duration(milliseconds: 500), () {
-      setState(() {
-        products = [
-          {
-            'id': '1',
-            'name': '실버워커 (바퀴X) 노인용 보행기 경량 접이식 보행보조기',
-            'price': '220,000원',
-            'discount': '80%',
-            'image': 'assets/images/supportive.png',
-            'category': '보행보조기',
-          },
-          {
-            'id': '2',
-            'name': '의료용 실버워커(MASSAGE 722F) 노인용 보행기',
-            'price': '100,000원',
-            'discount': '50%',
-            'image': 'assets/images/elderly.png',
-            'category': '보행보조기',
-          },
-        ];
-      });
-    });
+    fetchProducts();
+  }
+
+  Future<void> fetchProducts() async {
+    try {
+      final url = Uri.parse('http://192.168.0.83:8081/api/products');
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
+        setState(() {
+          products = data.cast<Map<String, dynamic>>();
+        });
+      } else {
+        print("📛 상품 불러오기 실패: ${response.statusCode}");
+      }
+    } catch (e) {
+      print("❌ 상품 로드 중 오류: $e");
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // ✅ 카테고리 + 검색 + 정렬 반영한 필터
-    List<Map<String, String>> filteredProducts = products.where((p) {
-      final matchesCategory = selectedCategory == "전체" || p['category'] == selectedCategory;
-      final matchesSearch = searchQuery.isEmpty || p['name']!.contains(searchQuery);
+    List<Map<String, dynamic>> filteredProducts = products.where((p) {
+      final matchesCategory =
+          selectedCategory == "전체" || p['categoryName'] == selectedCategory;
+      final matchesSearch = searchQuery.isEmpty ||
+          p['name']?.toString().contains(searchQuery) == true;
       return matchesCategory && matchesSearch;
     }).toList();
 
-    // ✅ 간단한 정렬 예시
     if (selectedSort == "가격 낮은순") {
       filteredProducts.sort((a, b) =>
-          _parsePrice(a['price']!).compareTo(_parsePrice(b['price']!)));
+          _parsePrice(a['discountPrice']).compareTo(_parsePrice(b['discountPrice'])));
     } else if (selectedSort == "가격 높은순") {
       filteredProducts.sort((a, b) =>
-          _parsePrice(b['price']!).compareTo(_parsePrice(a['price']!)));
+          _parsePrice(b['discountPrice']).compareTo(_parsePrice(a['discountPrice'])));
+    } else if (selectedSort == "최신순") {
+      filteredProducts.sort((a, b) {
+        final aDate = DateTime.tryParse(a['createdAt'] ?? '') ?? DateTime(2000);
+        final bDate = DateTime.tryParse(b['createdAt'] ?? '') ?? DateTime(2000);
+        return bDate.compareTo(aDate);
+      });
+    } else if (selectedSort == "인기순") {
+      filteredProducts.sort((a, b) =>
+          (b['popularity'] ?? 0).compareTo(a['popularity'] ?? 0));
     }
 
     return Scaffold(
@@ -109,16 +119,12 @@ class _ProductsPageState extends State<ProductsPage> {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: DropdownButtonHideUnderline(
-                        child: Theme(
-                          data: Theme.of(context).copyWith(canvasColor: Colors.white),
-                          child: DropdownButton<String>(
-                            value: selectedSort,
-                            onChanged: (value) => setState(() => selectedSort = value!),
-                            items: sortOptions.map((sort) => DropdownMenuItem(
-                              value: sort,
-                              child: Text(sort),
-                            )).toList(),
-                          ),
+                        child: DropdownButton<String>(
+                          value: selectedSort,
+                          onChanged: (value) => setState(() => selectedSort = value!),
+                          items: sortOptions
+                              .map((sort) => DropdownMenuItem(value: sort, child: Text(sort)))
+                              .toList(),
                         ),
                       ),
                     ),
@@ -127,9 +133,8 @@ class _ProductsPageState extends State<ProductsPage> {
               ],
             ),
           ),
-
           if (showFilters)
-            Container(
+            Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
               child: Wrap(
                 spacing: 8,
@@ -139,9 +144,7 @@ class _ProductsPageState extends State<ProductsPage> {
                   return ChoiceChip(
                     label: Text(
                       category,
-                      style: TextStyle(
-                        color: isSelected ? Colors.white : Colors.black,
-                      ),
+                      style: TextStyle(color: isSelected ? Colors.white : Colors.black),
                     ),
                     selected: isSelected,
                     onSelected: (_) => setState(() => selectedCategory = category),
@@ -155,13 +158,13 @@ class _ProductsPageState extends State<ProductsPage> {
                 }).toList(),
               ),
             ),
-
           Expanded(
             child: ListView.builder(
               padding: EdgeInsets.all(16),
               itemCount: filteredProducts.length,
               itemBuilder: (context, index) {
-                final product = filteredProducts[index];
+                final p = filteredProducts[index];
+                final image = _getProductImage(p);
                 return Card(
                   color: Colors.white,
                   margin: EdgeInsets.symmetric(vertical: 8),
@@ -169,11 +172,48 @@ class _ProductsPageState extends State<ProductsPage> {
                     borderRadius: BorderRadius.circular(8),
                     side: BorderSide(color: Colors.grey.shade200),
                   ),
-                  child: ListTile(
-                    leading: Image.asset(product['image']!, width: 50, height: 50),
-                    title: Text(product['name']!),
-                    subtitle: Text("가격: ${product['price']} (할인: ${product['discount']})"),
-                    onTap: () => Navigator.pushNamed(context, '/product-detail'),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        image,
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  p['name'] ?? '',
+                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    "${_formatPrice(p['discountPrice'])}원",
+                                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    "${_formatPrice(p['price'])}원",
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.grey,
+                                      decoration: TextDecoration.lineThrough,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               },
@@ -184,7 +224,42 @@ class _ProductsPageState extends State<ProductsPage> {
     );
   }
 
-  int _parsePrice(String price) {
-    return int.tryParse(price.replaceAll(RegExp(r'[^\d]'), '')) ?? 0;
+  int _parsePrice(dynamic price) {
+    if (price == null) return 0;
+    if (price is int) return price;
+    if (price is double) return price.toInt();
+    return int.tryParse(price.toString().replaceAll(RegExp(r'[^\d]'), '')) ?? 0;
+  }
+
+  String _formatPrice(dynamic price) {
+    return numberFormat.format(_parsePrice(price));
+  }
+
+  String _resolveImageUrl(String rawUrl) {
+    if (rawUrl.startsWith('http')) return rawUrl;
+    return "http://192.168.0.83:8081$rawUrl";
+  }
+
+  Widget _getProductImage(Map<String, dynamic> p) {
+    String? imageUrl;
+
+    if (p['imageUrls'] != null &&
+        p['imageUrls'] is List &&
+        p['imageUrls'].isNotEmpty) {
+      imageUrl = p['imageUrls'][0];
+    } else if (p['images'] != null &&
+        p['images'] is List &&
+        p['images'].isNotEmpty) {
+      imageUrl = p['images'][0];
+    } else if (p['imageUrl'] != null) {
+      imageUrl = p['imageUrl'];
+    } else if (p['image'] != null) {
+      imageUrl = p['image'];
+    }
+
+    return imageUrl != null
+        ? Image.network(_resolveImageUrl(imageUrl),
+        width: 80, height: 80, fit: BoxFit.cover)
+        : Icon(Icons.image_not_supported, size: 50);
   }
 }

@@ -24,7 +24,7 @@ import 'screens/care_grade_test_page.dart';
 void main() {
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);
-    print('❌ Flutter Error: ${details.exception}');
+    print('❌ Flutter Error: \${details.exception}');
   };
 
   runApp(MyApp());
@@ -63,9 +63,9 @@ class MyApp extends StatelessWidget {
       },
       onGenerateRoute: (settings) {
         if (settings.name == '/signup-email') {
-          final email = settings.arguments as String;
+          final args = settings.arguments as Map<String, dynamic>;
           return MaterialPageRoute(
-            builder: (context) => SignupEmailPage(email: email),
+            builder: (context) => SignupEmailPage(userData: args),
           );
         }
 

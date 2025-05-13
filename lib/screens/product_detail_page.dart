@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/intl.dart';
 
 class ProductDetailPage extends StatefulWidget {
   @override
@@ -9,13 +13,13 @@ class _ProductDetailPageState extends State<ProductDetailPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   int quantity = 1;
+  Map<String, dynamic>? product;
   List<Map<String, dynamic>> reviews = [];
   List<Map<String, dynamic>> questions = [];
-  bool showReviewForm = false;
-  bool showQuestionForm = false;
-  int newRating = 0;
-  String newReview = "";
-  String newQuestion = "";
+  bool isLoading = true;
+  bool isInitialized = false;
+
+  final numberFormat = NumberFormat("#,###", "ko_KR");
 
   @override
   void initState() {
@@ -24,9 +28,89 @@ class _ProductDetailPageState extends State<ProductDetailPage>
   }
 
   @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!isInitialized) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args != null && args is Map<String, dynamic> && args.containsKey('id')) {
+        final productId = args['id'];
+        fetchProductDetail(productId);
+        fetchReviews(productId);
+        fetchQuestions(productId);
+        isInitialized = true;
+      } else {
+        print("❌ 전달된 arguments가 null이거나 형식이 잘못되었습니다.");
+        Navigator.pop(context);
+      }
+    }
+  }
+
+  Future<void> fetchProductDetail(int id) async {
+    try {
+      final res = await http.get(Uri.parse("http://192.168.0.83:8081/api/products/$id"));
+      if (res.statusCode == 200) {
+        setState(() {
+          product = json.decode(utf8.decode(res.bodyBytes));
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      print("❌ 상품 상세 오류: $e");
+    }
+  }
+
+  Future<void> fetchReviews(int id) async {
+    try {
+      final res = await http.get(Uri.parse("http://192.168.0.83:8081/api/products/$id/reviews"));
+      if (res.statusCode == 200) {
+        setState(() {
+          reviews = List<Map<String, dynamic>>.from(json.decode(utf8.decode(res.bodyBytes)));
+        });
+      }
+    } catch (e) {
+      print("❌ 리뷰 오류: $e");
+    }
+  }
+
+  Future<void> fetchQuestions(int id) async {
+    try {
+      final res = await http.get(Uri.parse("http://192.168.0.83:8081/api/products/$id/questions"));
+      if (res.statusCode == 200) {
+        setState(() {
+          questions = List<Map<String, dynamic>>.from(json.decode(utf8.decode(res.bodyBytes)));
+        });
+      }
+    } catch (e) {
+      print("❌ 문의 오류: $e");
+    }
+  }
+
+  Future<void> addToCart(int productId, int quantity) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('accessToken') ?? '';
+
+      final res = await http.post(
+        Uri.parse("http://192.168.0.83:8081/api/cart"),
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $token",
+        },
+        body: json.encode({
+          "productId": productId,
+          "quantity": quantity,
+        }),
+      );
+
+      if (res.statusCode == 200) {
+        print("🛒 장바구니 담기 완료");
+      } else {
+        print("❌ 장바구니 실패: ${res.statusCode}");
+        print("응답: ${res.body}");
+      }
+    } catch (e) {
+      print("❌ 네트워크 오류: $e");
+    }
   }
 
   void changeQuantity(int delta) {
@@ -35,40 +119,19 @@ class _ProductDetailPageState extends State<ProductDetailPage>
     });
   }
 
-  void submitReview() {
-    if (newReview.isNotEmpty && newRating > 0) {
-      setState(() {
-        reviews.add({
-          'userName': "나**",
-          'rating': newRating,
-          'content': newReview,
-          'createdAt': DateTime.now().toIso8601String().substring(0, 10),
-        });
-        newReview = "";
-        newRating = 0;
-        showReviewForm = false;
-      });
-    }
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
-  void submitQuestion() {
-    if (newQuestion.isNotEmpty) {
-      setState(() {
-        questions.add({
-          'title': "문의",
-          'content': newQuestion,
-          'userName': "익명 사용자",
-          'createdAt': DateTime.now().toIso8601String().substring(0, 10),
-        });
-        newQuestion = "";
-        showQuestionForm = false;
-      });
-    }
+  String _resolveImageUrl(String rawUrl) {
+    if (rawUrl.startsWith('http')) return rawUrl;
+    return "http://192.168.0.83:8081$rawUrl";
   }
 
   Widget buildStarDisplay(double rating) {
     return Row(
-      mainAxisSize: MainAxisSize.min,
       children: List.generate(5, (i) => Icon(
         Icons.star,
         color: i < rating ? Colors.amber : Colors.grey[300],
@@ -79,83 +142,77 @@ class _ProductDetailPageState extends State<ProductDetailPage>
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading || product == null) {
+      return Scaffold(
+        appBar: AppBar(title: Text('제품 상세')),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     double averageRating = reviews.isNotEmpty
         ? reviews.map((r) => r['rating'] as int).reduce((a, b) => a + b) / reviews.length
         : 0;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('제품 목록'),
+        title: Text(product!['name'] ?? '제품 상세'),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
-
       ),
       body: Column(
         children: [
-          Image.asset('assets/images/supportive.png', height: 200),
+          product!['images'] != null && product!['images'].isNotEmpty
+              ? Image.network(
+            _resolveImageUrl(product!['images'][0]),
+            height: 200,
+            fit: BoxFit.cover,
+          )
+              : SizedBox(height: 200, child: Icon(Icons.image, size: 100)),
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("실버워커 (바퀴X) 노인용 보행기",
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                Text(product!['name'], style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 SizedBox(height: 8),
                 Row(
                   children: [
                     buildStarDisplay(averageRating),
-                    SizedBox(width: 8),
-                    Text("${averageRating.toStringAsFixed(1)}",
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                    SizedBox(width: 4),
-                    Text("(${reviews.length}개 리뷰)", style: TextStyle(color: Colors.grey[600]))
+                    SizedBox(width: 6),
+                    Text("${averageRating.toStringAsFixed(1)}  (${reviews.length}개 리뷰)",
+                        style: TextStyle(color: Colors.grey[600])),
                   ],
                 ),
                 SizedBox(height: 12),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Text("220,000원",
-                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                        SizedBox(width: 8),
-                        Text("80%",
-                            style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                    Text("1,100,000원",
+                    Text("${numberFormat.format((product!['discountPrice'] as num).toInt())}원",
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    SizedBox(width: 8),
+                    Text("${numberFormat.format((product!['price'] as num).toInt())}원",
                         style: TextStyle(
-                          decoration: TextDecoration.lineThrough,
                           color: Colors.grey,
-                        ))
+                          decoration: TextDecoration.lineThrough,
+                        )),
                   ],
                 ),
                 SizedBox(height: 12),
                 Row(
                   children: [
                     Text("수량:", style: TextStyle(fontSize: 16)),
-                    SizedBox(width: 8),
-                    IconButton(
-                      icon: Icon(Icons.remove),
-                      onPressed: () => changeQuantity(-1),
-                    ),
-                    Text('$quantity'),
-                    IconButton(
-                      icon: Icon(Icons.add),
-                      onPressed: () => changeQuantity(1),
-                    ),
+                    IconButton(onPressed: () => changeQuantity(-1), icon: Icon(Icons.remove)),
+                    Text("$quantity"),
+                    IconButton(onPressed: () => changeQuantity(1), icon: Icon(Icons.add)),
                   ],
-                )
+                ),
               ],
             ),
           ),
           TabBar(
             controller: _tabController,
             labelColor: Colors.blue,
-            unselectedLabelColor: Colors.black54,
-            indicatorColor: Colors.blue,
-            tabs: const [
+            unselectedLabelColor: Colors.grey,
+            tabs: [
               Tab(text: "상세정보"),
               Tab(text: "리뷰"),
               Tab(text: "문의"),
@@ -165,7 +222,12 @@ class _ProductDetailPageState extends State<ProductDetailPage>
             child: TabBarView(
               controller: _tabController,
               children: [
-                _buildDescriptionTab(),
+                ListView(
+                  padding: EdgeInsets.all(16),
+                  children: [
+                    Text(product!['description'] ?? '상품 설명이 없습니다.'),
+                  ],
+                ),
                 _buildReviewTab(),
                 _buildQuestionTab(),
               ],
@@ -183,7 +245,8 @@ class _ProductDetailPageState extends State<ProductDetailPage>
             foregroundColor: Colors.white,
             minimumSize: Size(double.infinity, 48),
           ),
-          onPressed: () {
+          onPressed: () async {
+            await addToCart(product!['id'], quantity);
             showDialog(
               context: context,
               builder: (context) => AlertDialog(
@@ -207,197 +270,54 @@ class _ProductDetailPageState extends State<ProductDetailPage>
           },
         ),
       ),
-
-    );
-  }
-
-  Widget _buildDescriptionTab() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Text("\u{1F4E6} 제품 설명", style: TextStyle(fontWeight: FontWeight.bold)),
-        SizedBox(height: 8),
-        Text("이 상품은 경량 접이식 보행 보조기로, 어르신들의 안전한 이동을 돕습니다."),
-      ],
     );
   }
 
   Widget _buildReviewTab() {
+    if (reviews.isEmpty) return Center(child: Text("등록된 리뷰가 없습니다."));
     return ListView(
       padding: EdgeInsets.all(16),
-      children: [
-        if (reviews.isEmpty) Text("등록된 리뷰가 없습니다."),
-        ...reviews.map((r) => Container(
-          margin: EdgeInsets.only(bottom: 12),
-          padding: EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      children: reviews.map((r) => Card(
+        margin: EdgeInsets.only(bottom: 12),
+        child: ListTile(
+          title: Row(
             children: [
-              Row(
-                children: [
-                  buildStarDisplay(r['rating']),
-                  SizedBox(width: 8),
-                  Text(r['userName'], style: TextStyle(fontWeight: FontWeight.bold)),
-                  Spacer(),
-                  Text(r['createdAt'], style: TextStyle(fontSize: 12, color: Colors.grey)),
-                ],
-              ),
-              SizedBox(height: 8),
-              Text(r['content']),
+              buildStarDisplay(r['rating']),
+              SizedBox(width: 8),
+              Text(r['userName']),
+              Spacer(),
+              Text(r['createdAt'], style: TextStyle(fontSize: 12, color: Colors.grey)),
             ],
           ),
-        )),
-        if (showReviewForm) _buildReviewForm(),
-        if (!showReviewForm)
-          Padding(
-            padding: const EdgeInsets.only(top: 16),
-            child: ElevatedButton(
-              onPressed: () => setState(() => showReviewForm = true),
-              style: ElevatedButton.styleFrom(minimumSize: Size(double.infinity, 48), backgroundColor: Colors.blue),
-              child: Text("리뷰 작성", style: TextStyle(color: Colors.white)),
-            ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: Text(r['content']),
           ),
-      ],
-    );
-  }
-
-  Widget _buildReviewForm() {
-    return Container(
-      margin: EdgeInsets.only(top: 20),
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text("리뷰 작성하기", style: TextStyle(fontWeight: FontWeight.bold)),
-          SizedBox(height: 8),
-          Row(
-            children: List.generate(5, (i) => IconButton(
-              icon: Icon(Icons.star, color: i < newRating ? Colors.amber : Colors.grey),
-              onPressed: () => setState(() => newRating = i + 1),
-            )),
-          ),
-          TextField(
-            onChanged: (value) => setState(() => newReview = value),
-            maxLines: 3,
-            decoration: InputDecoration(hintText: "리뷰를 작성해주세요", border: OutlineInputBorder()),
-          ),
-          SizedBox(height: 12),
-          Row(
-            children: [
-              ElevatedButton(
-                onPressed: submitReview,
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
-                child: Text("등록"),
-              ),
-              SizedBox(width: 12),
-              TextButton(
-                onPressed: () => setState(() => showReviewForm = false),
-                child: Text("취소"),
-              ),
-            ],
-          ),
-        ],
-      ),
+        ),
+      )).toList(),
     );
   }
 
   Widget _buildQuestionTab() {
+    if (questions.isEmpty) return Center(child: Text("등록된 문의가 없습니다."));
     return ListView(
       padding: EdgeInsets.all(16),
-      children: [
-        if (questions.isEmpty)
-          Column(
+      children: questions.map((q) => Card(
+        margin: EdgeInsets.only(bottom: 12),
+        child: ListTile(
+          title: Text(q['title']),
+          subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("등록된 문의가 없습니다."),
-              SizedBox(height: 12),
-              if (!showQuestionForm)
-                ElevatedButton(
-                  onPressed: () => setState(() => showQuestionForm = true),
-                  style: ElevatedButton.styleFrom(minimumSize: Size(double.infinity, 48), backgroundColor: Colors.blue),
-                  child: Text("문의 작성", style: TextStyle(color: Colors.white)),
-                ),
-            ],
-          )
-        else
-          ...questions.map((q) => Card(
-            color: Colors.white,
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            margin: EdgeInsets.only(bottom: 12),
-            child: ListTile(
-              title: Text(q['title'], style: TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(height: 8),
-                  Text(q['content']),
-                  SizedBox(height: 8),
-                  Text("${q['userName']} · ${q['createdAt']}", style: TextStyle(fontSize: 12, color: Colors.grey)),
-                ],
-              ),
-            ),
-          )),
-        if (showQuestionForm) _buildQuestionForm(),
-        if (questions.isNotEmpty && !showQuestionForm)
-          Padding(
-            padding: const EdgeInsets.only(top: 16),
-            child: ElevatedButton(
-              onPressed: () => setState(() => showQuestionForm = true),
-              style: ElevatedButton.styleFrom(minimumSize: Size(double.infinity, 48), backgroundColor: Colors.blue),
-              child: Text("문의 작성", style: TextStyle(color: Colors.white)),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildQuestionForm() {
-    return Container(
-      margin: EdgeInsets.only(top: 20),
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text("문의 작성하기", style: TextStyle(fontWeight: FontWeight.bold)),
-          SizedBox(height: 8),
-          TextField(
-            onChanged: (value) => setState(() => newQuestion = value),
-            maxLines: 3,
-            decoration: InputDecoration(hintText: "문의 내용을 입력해주세요", border: OutlineInputBorder()),
-          ),
-          SizedBox(height: 12),
-          Row(
-            children: [
-              ElevatedButton(
-                onPressed: submitQuestion,
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
-                child: Text("등록"),
-              ),
-              SizedBox(width: 12),
-              TextButton(
-                onPressed: () => setState(() => showQuestionForm = false),
-                child: Text("취소"),
-              ),
+              SizedBox(height: 8),
+              Text(q['content']),
+              SizedBox(height: 8),
+              Text("${q['userName']} · ${q['createdAt']}",
+                  style: TextStyle(fontSize: 12, color: Colors.grey)),
             ],
           ),
-        ],
-      ),
+        ),
+      )).toList(),
     );
   }
 }

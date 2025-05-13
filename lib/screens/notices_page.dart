@@ -1,37 +1,56 @@
 import 'package:flutter/material.dart';
-import 'notice_detail_page.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
-class NoticesPage extends StatelessWidget {
-  final List<Map<String, dynamic>> allNotices = [
-    {
-      'id': 1,
-      'title': "[공지] 직방 동행봉사 정보 및 이벤트 수신 안내",
-      'date': "2025.04.15",
-      'views': 245,
-      'content': "동행봉사와 관련된 자세한 내용과 이벤트 정보를 확인하세요.",
-    },
-    {
-      'id': 2,
-      'title': "[공지] 직방 개인정보 처리방침 (2024/12/31) 개정 안내",
-      'date': "2025.04.10",
-      'views': 187,
-      'content': "2024년 12월 31일부터 적용되는 새로운 개인정보 처리방침입니다.",
-    },
-    {
-      'id': 3,
-      'title': "[공지] 직방 개인정보 처리방침 (2024/11/01) 개정 안내",
-      'date': "2025.04.05",
-      'views': 203,
-      'content': "2024년 11월 01일자 개인정보 방침 개정사항 안내드립니다.",
-    },
-    {
-      'id': 4,
-      'title': "[공지][일부] 단지 설계해 정보 리뉴얼 및 업데이트 자료 안내",
-      'date': "2025.03.28",
-      'views': 156,
-      'content': "단지 설계 정보 리뉴얼 내용과 자료 업데이트 내역 안내드립니다.",
-    },
-  ];
+class NoticesPage extends StatefulWidget {
+  @override
+  _NoticesPageState createState() => _NoticesPageState();
+}
+
+class _NoticesPageState extends State<NoticesPage> {
+  List<Map<String, dynamic>> allNotices = [];
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchNotices();
+  }
+
+  Future<void> fetchNotices() async {
+    try {
+      final url = Uri.parse(
+          'http://192.168.0.83:8081/api/notices?page=0&size=10&sort=createdAt,desc');
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        // ✅ 인코딩 보정
+        final Map<String, dynamic> data =
+        json.decode(utf8.decode(response.bodyBytes));
+        final List<dynamic> content = data['content'];
+
+        setState(() {
+          allNotices = content.map<Map<String, dynamic>>((item) {
+            return {
+              'id': item['id'],
+              'title': item['title'] ?? '',
+              'createdAt': item['createdAt'] ?? '',
+              'views': item['views'] ?? 0,
+              'content': item['content'] ?? '',
+            };
+          }).toList();
+          isLoading = false;
+        });
+      } else {
+        print('📛 서버 응답 오류: ${response.statusCode}');
+        print('본문: ${response.body}');
+        setState(() => isLoading = false);
+      }
+    } catch (e) {
+      print('❌ 예외 발생: $e');
+      setState(() => isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,21 +60,29 @@ class NoticesPage extends StatelessWidget {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
       ),
-      body: ListView.builder(
+      body: isLoading
+          ? Center(child: CircularProgressIndicator())
+          : allNotices.isEmpty
+          ? Center(child: Text("공지사항이 없습니다."))
+          : ListView.builder(
         itemCount: allNotices.length,
         itemBuilder: (context, index) {
           final notice = allNotices[index];
           return Card(
-            margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             color: Colors.white,
+            margin: const EdgeInsets.symmetric(
+                horizontal: 16, vertical: 8),
             child: ListTile(
               title: Text(notice['title']),
-              subtitle: Text("날짜: ${notice['date']} · 조회수: ${notice['views']}"),
+              subtitle: Text(
+                "날짜: ${notice['createdAt']} · 조회수: ${notice['views']}",
+                style: TextStyle(fontSize: 12),
+              ),
               onTap: () {
                 Navigator.pushNamed(
                   context,
                   '/notices-detail',
-                  arguments: notice, // ✅ Map 전체를 arguments로 넘김
+                  arguments: notice,
                 );
               },
             ),

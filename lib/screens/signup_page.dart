@@ -15,11 +15,15 @@ class _SignupPageState extends State<SignupPage> {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
 
-      // ✅ 이메일 인증 페이지로 이동하며 이메일 전달
+      // ✅ 이메일 인증 페이지로 이동
       Navigator.pushNamed(
         context,
         '/signup-email',
-        arguments: email,
+        arguments: {
+          'username': username,
+          'email': email,
+          'phone': phone,
+        },
       );
     }
   }
@@ -78,11 +82,7 @@ class _SignupPageState extends State<SignupPage> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 6,
-                  offset: Offset(0, 2),
-                ),
+                BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 2)),
               ],
             ),
             child: Form(
@@ -101,11 +101,6 @@ class _SignupPageState extends State<SignupPage> {
                       fillColor: Colors.grey[100],
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      focusedBorder: OutlineInputBorder( // ✅ 포커스 시 파란 테두리
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.blue),
                       ),
                     ),
                     validator: (value) =>
@@ -122,11 +117,6 @@ class _SignupPageState extends State<SignupPage> {
                       fillColor: Colors.grey[100],
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      focusedBorder: OutlineInputBorder( // ✅ 포커스 시 파란 테두리
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.blue),
                       ),
                     ),
                     validator: (value) =>
@@ -144,11 +134,6 @@ class _SignupPageState extends State<SignupPage> {
                       fillColor: Colors.grey[100],
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
-                      ),
-                      focusedBorder: OutlineInputBorder( // ✅ 포커스 시 파란 테두리
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.blue),
                       ),
                     ),
                     validator: (value) =>

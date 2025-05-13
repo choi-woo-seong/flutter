@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
-import '../widgets/bottom_navigation.dart'; // ✅ 필요 시 경로 확인
+import 'package:shared_preferences/shared_preferences.dart';
+import '../widgets/bottom_navigation.dart';
 
 class CartPage extends StatefulWidget {
   @override
@@ -14,73 +17,88 @@ class _CartPageState extends State<CartPage> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(Duration(milliseconds: 500), () {
-      setState(() {
-        isLoading = false;
-        cart = [
-          {
-            'id': '1',
-            'name': '실버워커 노인용 보행기',
-            'price': 220000,
-            'quantity': 1,
-            'image': 'assets/images/supportive.png',
-          },
-          {
-            'id': '2',
-            'name': '의료용 실버워커',
-            'price': 100000,
-            'quantity': 2,
-            'image': 'assets/images/elderly.png',
-          },
-        ];
-      });
-    });
+    fetchCartItems();
   }
 
-  void removeFromCart(String id) {
-    setState(() {
-      cart.removeWhere((item) => item['id'] == id);
-    });
-  }
+  Future<void> fetchCartItems() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('accessToken') ?? '';
 
-  void clearCart() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.white, // ✅ 배경 흰색
-        title: Text("전체 삭제", style: TextStyle(color: Colors.black)), // 제목 글자 색 검정
-        content: Text("장바구니의 모든 항목을 삭제하시겠습니까?", style: TextStyle(color: Colors.black)), // 내용도 검정
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text("취소", style: TextStyle(color: Colors.black)), // ✅ 검정 글씨
-          ),
-          TextButton(
-            onPressed: () {
-              setState(() => cart.clear());
-              Navigator.pop(context);
-            },
-            child: Text("삭제", style: TextStyle(color: Colors.red)), // ✅ 검정 글씨
-          ),
-        ],
-      ),
-    );
-  }
+      final res = await http.get(
+        Uri.parse("http://192.168.0.83:8081/api/cart"),
+        headers: {
+          "Authorization": "Bearer $token",
+        },
+      );
 
-
-  void updateQuantity(String id, int delta) {
-    setState(() {
-      final index = cart.indexWhere((item) => item['id'] == id);
-      if (index != -1) {
-        cart[index]['quantity'] += delta;
-        if (cart[index]['quantity'] < 1) cart[index]['quantity'] = 1;
+      if (res.statusCode == 200) {
+        final List<dynamic> data = json.decode(utf8.decode(res.bodyBytes));
+        setState(() {
+          cart = data.map((item) => Map<String, dynamic>.from(item)).toList();
+          isLoading = false;
+        });
+      } else {
+        setState(() => isLoading = false);
+        print("❌ 장바구니 불러오기 실패: ${res.statusCode}");
       }
-    });
+    } catch (e) {
+      setState(() => isLoading = false);
+      print("❌ 예외 발생: $e");
+    }
+  }
+
+  Future<void> removeFromCart(int productId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('accessToken') ?? '';
+
+      final res = await http.delete(
+        Uri.parse("http://192.168.0.83:8081/api/cart/$productId"),
+        headers: {"Authorization": "Bearer $token"},
+      );
+
+      if (res.statusCode == 200) {
+        setState(() => cart.removeWhere((item) => item['productId'] == productId));
+      }
+    } catch (e) {
+      print("❌ 삭제 실패: $e");
+    }
+  }
+
+  Future<void> updateQuantity(int productId, int newQty) async {
+    if (newQty < 1) return;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('accessToken') ?? '';
+
+      final res = await http.put(
+        Uri.parse("http://192.168.0.83:8081/api/cart"), // ✅ 경로 수정
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $token",
+        },
+        body: json.encode({
+          "productId": productId,
+          "quantity": newQty,
+        }),
+      );
+
+      if (res.statusCode == 200) {
+        print("✅ 수량 변경 성공: $newQty");
+        await fetchCartItems();
+      } else {
+        print("❌ 수량 변경 실패 코드: ${res.statusCode}");
+      }
+    } catch (e) {
+      print("❌ 수량 변경 예외 발생: $e");
+    }
   }
 
   int calculateTotal() {
     return cart.fold(0, (total, item) {
-      final price = int.tryParse(item['price'].toString()) ?? 0;
+      final price = int.tryParse(item['unitPrice'].toString()) ?? 0;
       final quantity = int.tryParse(item['quantity'].toString()) ?? 0;
       return total + (price * quantity);
     });
@@ -90,18 +108,53 @@ class _CartPageState extends State<CartPage> {
     return NumberFormat('#,###').format(price) + '원';
   }
 
+  void clearCart() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("전체 삭제"),
+        content: Text("장바구니의 모든 항목을 삭제하시겠습니까?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text("취소"),
+          ),
+          TextButton(
+            onPressed: () async {
+              try {
+                final prefs = await SharedPreferences.getInstance();
+                final token = prefs.getString('accessToken') ?? '';
+                final res = await http.delete(
+                  Uri.parse("http://192.168.0.83:8081/api/cart"),
+                  headers: {"Authorization": "Bearer $token"},
+                );
+                if (res.statusCode == 200) {
+                  setState(() => cart.clear());
+                }
+              } catch (e) {
+                print("❌ 전체 삭제 실패: $e");
+              }
+              Navigator.pop(context);
+            },
+            child: Text("삭제", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('장바구니'),
+        title: Text("장바구니"),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         actions: [
           IconButton(
             icon: Icon(Icons.delete),
             onPressed: cart.isEmpty ? null : clearCart,
-          ),
+          )
         ],
       ),
       body: isLoading
@@ -112,33 +165,58 @@ class _CartPageState extends State<CartPage> {
         itemCount: cart.length,
         itemBuilder: (context, index) {
           final item = cart[index];
+          final name = item['productName'] ?? "이름 없음";
+          final price = int.tryParse(item['unitPrice'].toString()) ?? 0;
+          final quantity = int.tryParse(item['quantity'].toString()) ?? 0;
+          final imageUrl = item['imageUrls'] != null && item['imageUrls'].isNotEmpty
+              ? item['imageUrls'][0]
+              : null;
+
           return Card(
             color: Colors.white,
             margin: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            child: ListTile(
-              leading: Image.asset(item['image'], width: 50, height: 50),
-              title: Text(item['name']),
-              subtitle: Text('${formatPrice(item['price'])}'),
-              trailing: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+            child: Padding(
+              padding: EdgeInsets.all(12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.remove),
-                        onPressed: () => updateQuantity(item['id'], -1),
-                      ),
-                      Text('${item['quantity']}'),
-                      IconButton(
-                        icon: Icon(Icons.add),
-                        onPressed: () => updateQuantity(item['id'], 1),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.close),
-                        onPressed: () => removeFromCart(item['id']),
-                      ),
-                    ],
+                  imageUrl != null
+                      ? Image.network(imageUrl, width: 50, height: 50)
+                      : Icon(Icons.image_not_supported),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(name,
+                            style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold)),
+                        SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Text(formatPrice(price * quantity),
+                                style: TextStyle(fontSize: 14)),
+                            Spacer(),
+                            IconButton(
+                              icon: Icon(Icons.remove),
+                              onPressed: quantity > 1
+                                  ? () => updateQuantity(item['productId'], quantity - 1)
+                                  : null,
+                            ),
+                            Text('$quantity'),
+                            IconButton(
+                              icon: Icon(Icons.add),
+                              onPressed: () => updateQuantity(item['productId'], quantity + 1),
+                            ),
+                            IconButton(
+                              icon: Icon(Icons.close),
+                              onPressed: () => removeFromCart(item['productId']),
+                            ),
+                          ],
+                        )
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -150,12 +228,12 @@ class _CartPageState extends State<CartPage> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(16),
             child: ElevatedButton(
               onPressed: cart.isEmpty
                   ? null
                   : () {
-                Navigator.pushNamed(context, '/cart-success'); // ✅ 주문 완료 페이지로 이동
+                Navigator.pushNamed(context, '/cart-success');
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue,
@@ -164,7 +242,6 @@ class _CartPageState extends State<CartPage> {
               ),
               child: Text("총 결제금액: ${formatPrice(calculateTotal())} - 주문하기"),
             ),
-
           ),
           BottomNavigation(currentIndex: 2),
         ],

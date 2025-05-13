@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginForm extends StatefulWidget {
   @override
@@ -11,12 +14,45 @@ class _LoginFormState extends State<LoginForm> {
   String password = '';
   bool rememberMe = false;
 
-  void handleLogin() {
+  void handleLogin() async {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("로그인 시도: $email")),
-      );
+
+      final url = Uri.parse("http://192.168.0.67:8081/api/auth/login");
+
+      try {
+        final response = await http.post(
+          url,
+          headers: {"Content-Type": "application/json"},
+          body: jsonEncode({
+            "userId": email,
+            "password": password,
+          }),
+        );
+
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          final accessToken = data['token']; // ✅ 백엔드 구조에 맞춤
+
+          // ✅ SharedPreferences에 토큰 저장
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('accessToken', accessToken);
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("로그인 성공")),
+          );
+
+          Navigator.pushReplacementNamed(context, '/'); // 홈으로 이동
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("로그인 실패: ${response.body}")),
+          );
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("오류 발생: $e")),
+        );
+      }
     }
   }
 
@@ -27,11 +63,8 @@ class _LoginFormState extends State<LoginForm> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 아이디 라벨
           Text("아이디", style: TextStyle(fontSize: 12, color: Colors.black54)),
           SizedBox(height: 4),
-
-          // 아이디 입력 필드
           TextFormField(
             decoration: InputDecoration(
               hintText: "아이디를 입력하세요",
@@ -46,7 +79,7 @@ class _LoginFormState extends State<LoginForm> {
                 borderRadius: BorderRadius.circular(8),
                 borderSide: BorderSide(color: Colors.grey.shade300),
               ),
-              focusedBorder: OutlineInputBorder( // ✅ 추가: 포커스 시 파란색 테두리
+              focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
                 borderSide: BorderSide(color: Colors.blue),
               ),
@@ -54,10 +87,7 @@ class _LoginFormState extends State<LoginForm> {
             onSaved: (value) => email = value ?? '',
             validator: (value) => value == null || value.isEmpty ? "아이디를 입력하세요" : null,
           ),
-
           SizedBox(height: 16),
-
-          // 비밀번호 입력 + 찾기
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -92,7 +122,7 @@ class _LoginFormState extends State<LoginForm> {
                     borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide(color: Colors.grey.shade300),
                   ),
-                  focusedBorder: OutlineInputBorder( // ✅ 추가
+                  focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide(color: Colors.blue),
                   ),
@@ -100,26 +130,19 @@ class _LoginFormState extends State<LoginForm> {
                 onSaved: (value) => password = value ?? '',
                 validator: (value) => value == null || value.isEmpty ? "비밀번호를 입력하세요" : null,
               ),
-
             ],
           ),
-
-          // 로그인 상태 유지
           Row(
             children: [
               Checkbox(
                 value: rememberMe,
                 onChanged: (value) => setState(() => rememberMe = value ?? false),
-                activeColor: Colors.blue, // ✅ 체크 시 파란색으로 표시
+                activeColor: Colors.blue,
               ),
               Text("로그인 상태 유지"),
             ],
           ),
-
-
           SizedBox(height: 12),
-
-          // 로그인 버튼
           ElevatedButton(
             onPressed: handleLogin,
             style: ElevatedButton.styleFrom(
@@ -129,10 +152,7 @@ class _LoginFormState extends State<LoginForm> {
             ),
             child: Text("로그인"),
           ),
-
           SizedBox(height: 16),
-
-          // 또는 구분선
           Row(
             children: <Widget>[
               Expanded(child: Divider(thickness: 1)),
@@ -143,10 +163,7 @@ class _LoginFormState extends State<LoginForm> {
               Expanded(child: Divider(thickness: 1)),
             ],
           ),
-
           SizedBox(height: 16),
-
-          // 카카오 로그인
           ElevatedButton(
             onPressed: () {},
             style: ElevatedButton.styleFrom(
@@ -160,23 +177,17 @@ class _LoginFormState extends State<LoginForm> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Image.asset(
-                  'assets/images/kakao.png',
-                  width: 18,
-                  height: 18,
-                ),
+                Image.asset('assets/images/kakao.png', width: 18, height: 18),
                 SizedBox(width: 8),
                 Text("카카오로 로그인"),
               ],
             ),
           ),
           SizedBox(height: 8),
-
-// 구글 로그인
           OutlinedButton(
             onPressed: () {},
             style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.black, // ✅ 텍스트 색상: 검정
+              foregroundColor: Colors.black,
               padding: EdgeInsets.symmetric(vertical: 14),
               side: BorderSide(color: Colors.grey.shade300),
               shape: RoundedRectangleBorder(
@@ -186,20 +197,12 @@ class _LoginFormState extends State<LoginForm> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Image.asset(
-                  'assets/images/google.png',
-                  width: 23,
-                  height: 23,
-                ),
+                Image.asset('assets/images/google.png', width: 23, height: 23),
                 SizedBox(width: 8),
                 Text("구글로 로그인"),
               ],
             ),
           ),
-
-
-
-          // 회원가입 링크 (부분 색상 분리)
           Center(
             child: TextButton(
               onPressed: () => Navigator.pushNamed(context, '/signup'),
@@ -218,4 +221,10 @@ class _LoginFormState extends State<LoginForm> {
       ),
     );
   }
+}
+
+// ✅ 다른 페이지에서 JWT 가져올 수 있도록 함수 정의
+Future<String?> getAccessToken() async {
+  final prefs = await SharedPreferences.getInstance();
+  return prefs.getString('accessToken');
 }
