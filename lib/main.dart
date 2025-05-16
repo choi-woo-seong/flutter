@@ -24,7 +24,7 @@ import 'screens/care_grade_test_page.dart';
 void main() {
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);
-    print('❌ Flutter Error: \${details.exception}');
+    print('❌ Flutter Error: ${details.exception}');
   };
 
   runApp(MyApp());
@@ -43,14 +43,12 @@ class MyApp extends StatelessWidget {
       routes: {
         '/': (context) => HomePage(),
         '/products': (context) => ProductsPage(),
-        '/product-detail': (context) => ProductDetailPage(),
         '/login': (context) => LoginPage(),
         '/signup': (context) => SignupPage(),
         '/signup-password': (context) => SignupPasswordPage(),
         '/signup-end': (context) => SignupEndPage(),
         '/forgot-password': (context) => ForgotPasswordPage(),
         '/facility-list': (context) => FacilityListPage(category: '요양병원'),
-        '/facility-detail': (context) => FacilityDetailPage(),
         '/facility-review': (context) => FacilityReviewPage(),
         '/facility-question': (context) => FacilityQuestionPage(),
         '/facility-cost': (context) => FacilityCostPage(),
@@ -62,6 +60,16 @@ class MyApp extends StatelessWidget {
         '/care-test': (context) => CareGradeTestPage(),
       },
       onGenerateRoute: (settings) {
+        // ✅ 상품 상세 페이지
+        if (settings.name == '/product-detail') {
+          final args = settings.arguments as Map<String, dynamic>;
+          return MaterialPageRoute(
+            builder: (context) => ProductDetailPage(),
+            settings: RouteSettings(arguments: args),
+          );
+        }
+
+        // 이메일 인증 페이지
         if (settings.name == '/signup-email') {
           final args = settings.arguments as Map<String, dynamic>;
           return MaterialPageRoute(
@@ -69,12 +77,22 @@ class MyApp extends StatelessWidget {
           );
         }
 
+        // 공지사항 상세 페이지
         if (settings.name == '/notices-detail') {
           final notice = settings.arguments as Map<String, dynamic>;
           return MaterialPageRoute(
             builder: (context) => NoticeDetailPage(notice: notice),
           );
         }
+
+        // 시설 상세 페이지
+        if (settings.name == '/facility-detail') {
+          final facilityId = settings.arguments as String;
+          return MaterialPageRoute(
+            builder: (context) => FacilityDetailPage(facilityId: facilityId),
+          );
+        }
+
         return null;
       },
     );
