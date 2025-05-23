@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
@@ -14,34 +15,69 @@ class _SignupPasswordPageState extends State<SignupPasswordPage> {
   String error = '';
 
   void handleSubmit() async {
-    if (_formKey.currentState!.validate()) {
-      _formKey.currentState!.save();
-      if (password != confirmPassword) {
-        setState(() => error = "비밀번호가 일치하지 않습니다.");
-        return;
-      }
+    print("🔔 handleSubmit 호출");
+    if (!_formKey.currentState!.validate()) {
+      print("🔔 validation 실패");
+      return;
+    }
+    _formKey.currentState!.save();
+    if (password != confirmPassword) {
+      print("🔔 비밀번호 불일치");
+      setState(() => error = "비밀번호가 일치하지 않습니다.");
+      return;
+    }
 
-      final args = ModalRoute.of(context)!.settings.arguments as Map<String, String>;
-      final username = args['username']!;
-      final email = args['email']!;
-      final phone = args['phone']!;
+    final args = ModalRoute.of(context)!.settings.arguments;
+    if (args == null || args is! Map<String, dynamic>) {
+      print("🔔 arguments 타입 오류: $args");
+      setState(() => error = "인자 전달 오류");
+      return;
+    }
 
-      final response = await http.post(
-        Uri.parse("http://192.168.0.67:8081/api/auth/signup"),
+    final username = args['username'];
+    final email    = args['email'];
+    final phone    = args['phone'];
+    final uri = Uri.parse("http://192.168.0.83:8081/api/auth/signup");
+
+    print("🔔 signup URL: $uri");
+    print("🔔 signup payload: { userId: $username, email: $email, phone: $phone, password: $password }");
+
+    try {
+      final response = await http
+          .post(
+        uri,
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
-          "userId": username,
-          "email": email,
-          "phone": phone,
+          "userId":   username,
+          "email":    email,
+          "phone":    phone,
           "password": password,
         }),
-      );
+      )
+          .timeout(const Duration(seconds: 5));
 
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        Navigator.pushNamed(context, '/signup-end');
+      print("🔔 signup status: ${response.statusCode}");
+      print("🔔 signup body:   ${response.body}");
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // 성공하면 replace
+        Navigator.pushReplacementNamed(context, '/signup-end');
       } else {
-        setState(() => error = "회원가입 실패: ${response.body}");
+        String msg;
+        try {
+          final data = json.decode(response.body);
+          msg = data['message'] ?? response.body;
+        } catch (_) {
+          msg = response.body;
+        }
+        setState(() => error = "회원가입 실패: $msg (code: ${response.statusCode})");
       }
+    } on TimeoutException {
+      print("❌ signup timeout");
+      setState(() => error = "서버 응답 지연: 다시 시도해주세요.");
+    } catch (e) {
+      print("❌ signup exception: $e");
+      setState(() => error = "네트워크 오류: $e");
     }
   }
 
@@ -65,9 +101,7 @@ class _SignupPasswordPageState extends State<SignupPasswordPage> {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 2)),
-              ],
+              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 2))],
             ),
             child: Form(
               key: _formKey,
@@ -82,11 +116,9 @@ class _SignupPasswordPageState extends State<SignupPasswordPage> {
                       hintText: "비밀번호 입력 (8자 이상)",
                       filled: true,
                       fillColor: Colors.grey[100],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                     ),
-                    validator: (val) => val != null && val.length >= 8 ? null : "8자 이상 입력",
+                    validator: (val) => (val != null && val.length >= 8) ? null : "8자 이상 입력",
                     onSaved: (val) => password = val ?? '',
                   ),
                   SizedBox(height: 16),
@@ -98,11 +130,9 @@ class _SignupPasswordPageState extends State<SignupPasswordPage> {
                       hintText: "비밀번호 다시 입력",
                       filled: true,
                       fillColor: Colors.grey[100],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                     ),
-                    validator: (val) => val != null && val.isNotEmpty ? null : "확인 입력",
+                    validator: (val) => (val != null && val.isNotEmpty) ? null : "확인 입력",
                     onSaved: (val) => confirmPassword = val ?? '',
                   ),
                   if (error.isNotEmpty) ...[

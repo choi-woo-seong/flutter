@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class FacilityListPage extends StatefulWidget {
   final String category;
@@ -8,14 +9,42 @@ class FacilityListPage extends StatefulWidget {
 
   @override
   _FacilityListPageState createState() => _FacilityListPageState();
+
 }
 
 class _FacilityListPageState extends State<FacilityListPage> {
+
+  // 한글 라벨을 백엔드 코드로 매핑
+  final Map<String, String> sizeLabelToCode = {
+    "대형": "LARGE",
+    "중형": "MEDIUM",
+    "소형": "SMALL",
+  };
+
+  final Map<String, String> gradeLabelToCode = {
+    "A": "1",
+    "B": "2",
+    "C": "3",
+    "D": "4",
+    "E": "5",
+    "등급제외": "등급제외",  // 빈 문자열이면 등급 제외
+  };
+
+  // 백엔드 코드 → 한글/영문 라벨 (새로 추가)
+  final Map<String, String> codeToGradeLabel = {
+    "1": "A",
+    "2": "B",
+    "3": "C",
+    "4": "D",
+    "5": "E",
+    "등급제외": "등급제외",
+  };
+
   late String currentCategory;
   List<Map<String, dynamic>> allFacilities = [];
 
   final List<String> categories = ['요양병원', '요양원', '실버타운'];
-  final Set<int> likedIds = {};
+  final Set<int> likedIds = {}; // ✅ 초기 찜 ID 저장용
 
   String? selectedSize;
   String? selectedGrade;
@@ -25,7 +54,7 @@ class _FacilityListPageState extends State<FacilityListPage> {
   final Map<String, String> categoryToTypeMap = {
     '요양병원': 'NURSING_HOSPITAL',
     '요양원': 'NURSING_HOME',
-    '실버타운': 'SILVERTOWN',
+    '실버타운': 'SILVER_TOWN',
   };
 
   @override
@@ -33,54 +62,138 @@ class _FacilityListPageState extends State<FacilityListPage> {
     super.initState();
     currentCategory = widget.category;
     fetchFacilities(currentCategory);
+    initLikedIds(); // ✅ 찜된 ID들 초기 세팅
+  }
+
+  // ✅ 찜한 시설 ID 목록 가져오기
+  Future<void> initLikedIds() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('accessToken');
+    if (token == null) return;
+
+    final res = await http.get(
+      Uri.parse("http://192.168.0.83:8081/api/bookmarks"),
+      headers: {"Authorization": "Bearer $token"},
+    );
+
+    if (res.statusCode == 200) {
+      final List<dynamic> data = json.decode(utf8.decode(res.bodyBytes));
+      setState(() {
+        likedIds.addAll(data.map<int>((e) => e['facilityId'] as int));
+      });
+    } else {
+      print("❌ 찜 ID 초기화 실패: ${res.statusCode}");
+    }
   }
 
   Future<void> fetchFacilities(String category) async {
-    try {
-      final apiType = categoryToTypeMap[category] ?? 'NURSING_HOSPITAL';
-      final url = Uri.parse("http://192.168.0.83:8081/api/facility?type=$apiType");
-      final res = await http.get(url);
-      if (res.statusCode == 200) {
-        final List<dynamic> data = json.decode(utf8.decode(res.bodyBytes));
-        setState(() {
-          allFacilities = data.cast<Map<String, dynamic>>();
-        });
-      } else {
-        print("❌ 실패: \${res.statusCode}");
-      }
-    } catch (e) {
-      print("❌ 오류 발생: $e");
+    final apiType = categoryToTypeMap[category] ?? 'NURSING_HOSPITAL';
+    final String? sizeCode = selectedSize != null
+        ? sizeLabelToCode[selectedSize!]
+        : null;
+
+    // 서버엔 type, size 만 전달
+    final params = {
+      'type': apiType,
+      if (sizeCode != null) 'size': sizeCode,
+    };
+
+    final uri = Uri.http('192.168.0.83:8081', '/api/facility', params);
+    final res = await http.get(uri);
+    if (res.statusCode == 200) {
+      setState(() {
+        allFacilities = List<Map<String, dynamic>>.from(
+            json.decode(utf8.decode(res.bodyBytes))
+        );
+      });
+    } else {
+      print("❌ 시설 목록 로드 실패: ${res.statusCode}");
+    }
+  }
+
+
+
+
+
+  // ✅ 찜 추가/해제
+  Future<void> toggleLike(dynamic facilityIdRaw) async {
+    final facilityId = (facilityIdRaw is int)
+        ? facilityIdRaw
+        : int.tryParse(facilityIdRaw.toString());
+
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('accessToken');
+    if (token == null || facilityId == null) return;
+
+    final isLiked = likedIds.contains(facilityId);
+    final url = Uri.parse("http://192.168.0.83:8081/api/bookmarks/$facilityId");
+
+    final res = await (isLiked
+        ? http.delete(url, headers: {"Authorization": "Bearer $token"})
+        : http.post(url, headers: {"Authorization": "Bearer $token"}));
+
+    print("🔁 요청 상태: ${res.statusCode}");
+
+    if (res.statusCode == 200 || res.statusCode == 204) {
+      setState(() {
+        isLiked ? likedIds.remove(facilityId) : likedIds.add(facilityId);
+      });
+    } else {
+      print("❌ 찜 처리 실패: ${res.statusCode}");
     }
   }
 
   List<Map<String, dynamic>> getFilteredFacilities() {
-    return allFacilities.where((facility) {
-      final tags = (facility['tags'] is List) ? facility['tags'] as List : [];
-      final name = facility['name']?.toString() ?? '';
-      final address = facility['address']?.toString() ?? '';
-      final tagText = tags.join(' ');
+    return allFacilities.where((f) {
+      final sizeValue  = f['facilitySize']?.toString() ?? '';
+      final gradeValue = f['grade']?.toString()       ?? '';
+      final name       = f['name']?.toString()        ?? '';
+      final address    = f['address']?.toString()     ?? '';
 
-      final matchesSize = selectedSize == null || tags.contains(selectedSize);
-      final matchesGrade = selectedGrade == null || tags.contains(selectedGrade);
-      final matchesSearch = searchQuery.isEmpty ||
-          name.contains(searchQuery) ||
-          address.contains(searchQuery) ||
-          tagText.contains(searchQuery);
+      // size 필터 (기존)
+      final String? sizeCode = selectedSize != null
+          ? sizeLabelToCode[selectedSize!]
+          : null;
+      final matchesSize = sizeCode == null || sizeValue == sizeCode;
+
+      // grade 필터: A~E vs 등급제외 vs 미선택
+      bool matchesGrade;
+      if (selectedGrade == null) {
+        // 필터 미선택
+        matchesGrade = true;
+      } else if (selectedGrade == "등급제외") {
+        // grade 값이 없거나 빈 문자열인 것만
+        matchesGrade = gradeValue.isEmpty;
+      } else {
+        // A~E 선택 시, 코드 비교
+        final code = gradeLabelToCode[selectedGrade]!;
+        matchesGrade = gradeValue == code;
+      }
+
+      // 검색어 필터 (기존)
+      final matchesSearch = searchQuery.isEmpty
+          || name.contains(searchQuery)
+          || address.contains(searchQuery);
 
       return matchesSize && matchesGrade && matchesSearch;
     }).toList()
       ..sort((a, b) {
-        if (selectedSort == "추천순") return a['id'].compareTo(b['id']);
+        if (selectedSort == "추천순") {
+          return a['id'].compareTo(b['id']);
+        }
         return 0;
       });
   }
+
+
+
+
 
   void _showFilterDialog(String title, List<String> options, String? selected, void Function(String?) onSelect) {
     showDialog(
       context: context,
       builder: (context) {
         String? selectedLocal = selected;
-
         return StatefulBuilder(
           builder: (context, setModalState) {
             return AlertDialog(
@@ -165,6 +278,11 @@ class _FacilityListPageState extends State<FacilityListPage> {
     );
   }
 
+  String _resolveImageUrl(String url) {
+    if (url.startsWith("http")) return url;
+    return "http://192.168.0.83:8081$url";
+  }
+
   @override
   Widget build(BuildContext context) {
     final filtered = getFilteredFacilities();
@@ -175,14 +293,19 @@ class _FacilityListPageState extends State<FacilityListPage> {
         foregroundColor: Colors.black,
         elevation: 0.5,
         title: DropdownButtonHideUnderline(
-          child: DropdownButton<String>(
+          child: // build() 안의 AppBar > DropdownButton
+          DropdownButton<String>(
             value: currentCategory,
             onChanged: (value) {
               if (value != null) {
                 setState(() {
-                  currentCategory = value;
-                  fetchFacilities(currentCategory);
+                  currentCategory  = value;
+                  selectedSize     = null;  // ← 이전 필터 초기화
+                  selectedGrade    = null;  // ← 이전 필터 초기화
+                  selectedSort     = null;  // ← (원하시면 정렬도 초기화)
+                  searchQuery      = '';    // ← (원하시면 검색어도 초기화)
                 });
+                fetchFacilities(value);
               }
             },
             items: categories.map((category) {
@@ -192,8 +315,7 @@ class _FacilityListPageState extends State<FacilityListPage> {
                   children: [
                     Image.asset(
                       'assets/images/${category == '요양병원' ? 'hospital' : category == '요양원' ? 'nursing' : 'silvertown'}.png',
-                      width: 20,
-                      height: 20,
+                      width: 20, height: 20,
                     ),
                     SizedBox(width: 6),
                     Text(category, style: TextStyle(fontSize: 18)),
@@ -236,22 +358,59 @@ class _FacilityListPageState extends State<FacilityListPage> {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: Row(
               children: [
-                _buildFilterButton("시설규모", () => _showFilterDialog("시설규모", ["대형", "중형", "소형"], selectedSize, (v) => setState(() => selectedSize = v))),
+                _buildFilterButton(
+                  "시설규모",
+                      () => _showFilterDialog(
+                    "시설규모",
+                    ["대형", "중형", "소형"],
+                    selectedSize,
+                        (v) {
+                      setState(() => selectedSize = v);
+                      fetchFacilities(currentCategory);
+                    },
+                  ),
+                ),
                 SizedBox(width: 8),
-                _buildFilterButton("평가등급", () => _showFilterDialog("평가등급", ["A", "B", "C", "D", "E", "등급제외"], selectedGrade, (v) => setState(() => selectedGrade = v))),
+                _buildFilterButton(
+                  "평가등급",
+                      () => _showFilterDialog(
+                    "평가등급",
+                    ["A", "B", "C", "D", "E", "등급제외"],
+                    selectedGrade,
+                        (v) => setState(() {
+                      // “등급제외”면 null, 아니면 그대로
+                      selectedGrade = (v == "등급제외") ? null : v;
+                      // 서버 재호출은 필요 없습니다
+                    }),
+                  ),
+                ),
+
+
                 Spacer(),
-                _buildFilterButton("추천순", () => _showFilterDialog("정렬방식", ["조회순", "상담많은순", "찜많은순"], selectedSort, (v) => setState(() => selectedSort = v))),
+                _buildFilterButton(
+                  "추천순",
+                      () => _showFilterDialog(
+                    "정렬방식",
+                    ["조회순", "리뷰순", "찜많은순"],
+                    selectedSort,
+                        (v) {
+                      setState(() => selectedSort = v);
+                      fetchFacilities(currentCategory);
+                    },
+                  ),
+                ),
               ],
             ),
           ),
+
           Expanded(
             child: ListView.builder(
               itemCount: filtered.length,
               itemBuilder: (context, index) {
                 final item = filtered[index];
                 final isLiked = likedIds.contains(item['id']);
-
                 String? imageUrl;
+
                 if (item['imageUrls'] != null && item['imageUrls'] is List && item['imageUrls'].isNotEmpty) {
                   imageUrl = item['imageUrls'][0];
                 } else if (item['image'] != null) {
@@ -295,9 +454,7 @@ class _FacilityListPageState extends State<FacilityListPage> {
                             isLiked ? Icons.favorite : Icons.favorite_border,
                             color: isLiked ? Colors.red : Colors.grey,
                           ),
-                          onPressed: () => setState(() {
-                            isLiked ? likedIds.remove(item['id']) : likedIds.add(item['id']);
-                          }),
+                          onPressed: () => toggleLike(item['id']),
                         ),
                       ),
                     ],
@@ -309,10 +466,5 @@ class _FacilityListPageState extends State<FacilityListPage> {
         ],
       ),
     );
-  }
-
-  String _resolveImageUrl(String url) {
-    if (url.startsWith("http")) return url;
-    return "http://192.168.0.83:8081$url";
   }
 }

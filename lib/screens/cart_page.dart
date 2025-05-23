@@ -74,7 +74,7 @@ class _CartPageState extends State<CartPage> {
       final token = prefs.getString('accessToken') ?? '';
 
       final res = await http.put(
-        Uri.parse("http://192.168.0.83:8081/api/cart"), // ✅ 경로 수정
+        Uri.parse("http://192.168.0.83:8081/api/cart"),
         headers: {
           "Content-Type": "application/json",
           "Authorization": "Bearer $token",
@@ -98,7 +98,9 @@ class _CartPageState extends State<CartPage> {
 
   int calculateTotal() {
     return cart.fold(0, (total, item) {
-      final price = int.tryParse(item['unitPrice'].toString()) ?? 0;
+      final price = (item['unitPrice'] is num)
+          ? (item['unitPrice'] as num).toInt()
+          : double.tryParse(item['unitPrice'].toString())?.toInt() ?? 0;
       final quantity = int.tryParse(item['quantity'].toString()) ?? 0;
       return total + (price * quantity);
     });
@@ -115,8 +117,12 @@ class _CartPageState extends State<CartPage> {
         title: Text("전체 삭제"),
         content: Text("장바구니의 모든 항목을 삭제하시겠습니까?"),
         actions: [
+          // 취소 버튼 글씨 검정으로 스타일 적용
           TextButton(
             onPressed: () => Navigator.pop(context),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.black, // 텍스트 검정
+            ),
             child: Text("취소"),
           ),
           TextButton(
@@ -143,6 +149,7 @@ class _CartPageState extends State<CartPage> {
     );
   }
 
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -166,7 +173,9 @@ class _CartPageState extends State<CartPage> {
         itemBuilder: (context, index) {
           final item = cart[index];
           final name = item['productName'] ?? "이름 없음";
-          final price = int.tryParse(item['unitPrice'].toString()) ?? 0;
+          final price = (item['unitPrice'] is num)
+              ? (item['unitPrice'] as num).toInt()
+              : double.tryParse(item['unitPrice'].toString())?.toInt() ?? 0;
           final quantity = int.tryParse(item['quantity'].toString()) ?? 0;
           final imageUrl = item['imageUrls'] != null && item['imageUrls'].isNotEmpty
               ? item['imageUrls'][0]
@@ -207,11 +216,13 @@ class _CartPageState extends State<CartPage> {
                             Text('$quantity'),
                             IconButton(
                               icon: Icon(Icons.add),
-                              onPressed: () => updateQuantity(item['productId'], quantity + 1),
+                              onPressed: () =>
+                                  updateQuantity(item['productId'], quantity + 1),
                             ),
                             IconButton(
                               icon: Icon(Icons.close),
-                              onPressed: () => removeFromCart(item['productId']),
+                              onPressed: () =>
+                                  removeFromCart(item['productId']),
                             ),
                           ],
                         )

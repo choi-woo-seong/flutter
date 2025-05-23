@@ -10,17 +10,15 @@ import '../widgets/bottom_navigation.dart';
 import '../widgets/care_grade_test_banner.dart';
 import '../widgets/home_product_section.dart';
 
-
 class HomePage extends StatefulWidget {
   @override
   _HomePageState createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  bool _isSearching = false;
+  // bool _isSearching = false;
   bool isLoggedIn = false;
-  final TextEditingController _searchController = TextEditingController();
-
+  // final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -46,24 +44,25 @@ class _HomePageState extends State<HomePage> {
       child: Scaffold(
         extendBodyBehindAppBar: false,
         appBar: AppBar(
-          title: _isSearching
-              ? TextField(
-            controller: _searchController,
-            decoration: InputDecoration(hintText: '검색어를 입력하세요', border: InputBorder.none),
-            autofocus: true,
-            onSubmitted: (value) => print('검색어: $value'),
-          )
-              : Image.asset('assets/images/logo.png', height: 40),
+          title: Image.asset('assets/images/logo.png', height: 40),
+          // title: _isSearching
+          //     ? TextField(
+          //         controller: _searchController,
+          //         decoration: InputDecoration(hintText: '검색어를 입력하세요', border: InputBorder.none),
+          //         autofocus: true,
+          //         onSubmitted: (value) => print('검색어: $value'),
+          //       )
+          //     : Image.asset('assets/images/logo.png', height: 40),
           backgroundColor: Colors.white,
           surfaceTintColor: Colors.white,
           scrolledUnderElevation: 0,
           elevation: 0,
           iconTheme: IconThemeData(color: Colors.black),
           actions: [
-            IconButton(
-              icon: Icon(_isSearching ? Icons.close : Icons.search),
-              onPressed: () => setState(() => _isSearching = !_isSearching),
-            ),
+            // IconButton(
+            //   icon: Icon(_isSearching ? Icons.close : Icons.search),
+            //   onPressed: () => setState(() => _isSearching = !_isSearching),
+            // ),
             Builder(
               builder: (context) => IconButton(
                 icon: Icon(Icons.menu),
@@ -100,7 +99,7 @@ class _HomePageState extends State<HomePage> {
                     final prefs = await SharedPreferences.getInstance();
                     await prefs.remove('accessToken');
                     setState(() => isLoggedIn = false);
-                    Navigator.pop(context); // 드로어 닫기
+                    Navigator.pop(context);
                   },
                 ),
               ListTile(
@@ -138,5 +137,4 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
-
 }

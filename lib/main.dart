@@ -9,8 +9,6 @@ import 'screens/signup_password_page.dart';
 import 'screens/signup_end_page.dart';
 import 'screens/forgot_password_page.dart';
 import 'screens/facility_detail_page.dart';
-import 'screens/facility_review_page.dart';
-import 'screens/facility_question_page.dart';
 import 'screens/facility_cost_page.dart';
 import 'screens/favorites_page.dart';
 import 'screens/cart_page.dart';
@@ -49,8 +47,6 @@ class MyApp extends StatelessWidget {
         '/signup-end': (context) => SignupEndPage(),
         '/forgot-password': (context) => ForgotPasswordPage(),
         '/facility-list': (context) => FacilityListPage(category: '요양병원'),
-        '/facility-review': (context) => FacilityReviewPage(),
-        '/facility-question': (context) => FacilityQuestionPage(),
         '/facility-cost': (context) => FacilityCostPage(),
         '/favorites': (context) => FavoritesPage(),
         '/cart': (context) => CartPage(),

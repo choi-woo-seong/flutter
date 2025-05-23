@@ -12,13 +12,13 @@ class _LoginFormState extends State<LoginForm> {
   final _formKey = GlobalKey<FormState>();
   String email = '';
   String password = '';
-  bool rememberMe = false;
+  // bool rememberMe = false; // ✅ 로그인 상태 유지 제거
 
   void handleLogin() async {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
 
-      final url = Uri.parse("http://192.168.0.67:8081/api/auth/login");
+      final url = Uri.parse("http://192.168.0.83:8081/api/auth/login");
 
       try {
         final response = await http.post(
@@ -30,19 +30,30 @@ class _LoginFormState extends State<LoginForm> {
           }),
         );
 
+        print('🔵 Login response.statusCode: ${response.statusCode}');
+        print('🔵 Login response.body: ${response.body}');
+
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
-          final accessToken = data['token']; // ✅ 백엔드 구조에 맞춤
 
-          // ✅ SharedPreferences에 토큰 저장
+          print('🟢 Parsed JSON keys: ${data.keys.toList()}');
+          print('🟢 Parsed JSON full: $data');
+
+          final accessToken = data['token'];
+          final userId = data['userId'];        // 백엔드 응답에 userId가 포함돼야 합니다
+          final userName = data['userName'];    // 필요하다면 추가 정보도
+
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('accessToken', accessToken);
+
+          await prefs.setInt('userId', userId);
+          if (userName != null) await prefs.setString('userName', userName);
 
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text("로그인 성공")),
           );
 
-          Navigator.pushReplacementNamed(context, '/'); // 홈으로 이동
+          Navigator.pushReplacementNamed(context, '/');
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text("로그인 실패: ${response.body}")),
@@ -132,16 +143,16 @@ class _LoginFormState extends State<LoginForm> {
               ),
             ],
           ),
-          Row(
-            children: [
-              Checkbox(
-                value: rememberMe,
-                onChanged: (value) => setState(() => rememberMe = value ?? false),
-                activeColor: Colors.blue,
-              ),
-              Text("로그인 상태 유지"),
-            ],
-          ),
+          // Row(
+          //   children: [
+          //     Checkbox(
+          //       value: rememberMe,
+          //       onChanged: (value) => setState(() => rememberMe = value ?? false),
+          //       activeColor: Colors.blue,
+          //     ),
+          //     Text("로그인 상태 유지"),
+          //   ],
+          // ),
           SizedBox(height: 12),
           ElevatedButton(
             onPressed: handleLogin,
@@ -223,7 +234,6 @@ class _LoginFormState extends State<LoginForm> {
   }
 }
 
-// ✅ 다른 페이지에서 JWT 가져올 수 있도록 함수 정의
 Future<String?> getAccessToken() async {
   final prefs = await SharedPreferences.getInstance();
   return prefs.getString('accessToken');

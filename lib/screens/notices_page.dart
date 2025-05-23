@@ -18,37 +18,28 @@ class _NoticesPageState extends State<NoticesPage> {
   }
 
   Future<void> fetchNotices() async {
-    try {
-      final url = Uri.parse(
-          'http://192.168.0.83:8081/api/notices?page=0&size=10&sort=createdAt,desc');
-      final response = await http.get(url);
-
-      if (response.statusCode == 200) {
-        // ✅ 인코딩 보정
-        final Map<String, dynamic> data =
-        json.decode(utf8.decode(response.bodyBytes));
-        final List<dynamic> content = data['content'];
-
-        setState(() {
-          allNotices = content.map<Map<String, dynamic>>((item) {
-            return {
-              'id': item['id'],
-              'title': item['title'] ?? '',
-              'createdAt': item['createdAt'] ?? '',
-              'views': item['views'] ?? 0,
-              'content': item['content'] ?? '',
-            };
-          }).toList();
-          isLoading = false;
-        });
-      } else {
-        print('📛 서버 응답 오류: ${response.statusCode}');
-        print('본문: ${response.body}');
-        setState(() => isLoading = false);
-      }
-    } catch (e) {
-      print('❌ 예외 발생: $e');
+    final url = Uri.parse(
+        'http://192.168.0.83:8081/api/notices?page=0&size=10&sort=createdAt,desc'
+    );
+    final response = await http.get(url);
+    if (response.statusCode == 200) {
+      final data = json.decode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+      final List<dynamic> content = data['content'];
+      setState(() {
+        allNotices = content.map<Map<String, dynamic>>((item) {
+          return {
+            'id': item['id'],
+            'title': item['title'] ?? '',
+            'createdAt': item['createdAt'] ?? '',
+            'views': item['views'] ?? 0,
+            'content': item['content'] ?? '',
+          };
+        }).toList();
+        isLoading = false;
+      });
+    } else {
       setState(() => isLoading = false);
+      print('📛 서버 응답 오류: ${response.statusCode}');
     }
   }
 
@@ -69,21 +60,42 @@ class _NoticesPageState extends State<NoticesPage> {
         itemBuilder: (context, index) {
           final notice = allNotices[index];
           return Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             color: Colors.white,
-            margin: const EdgeInsets.symmetric(
-                horizontal: 16, vertical: 8),
             child: ListTile(
               title: Text(notice['title']),
               subtitle: Text(
                 "날짜: ${notice['createdAt']} · 조회수: ${notice['views']}",
                 style: TextStyle(fontSize: 12),
               ),
-              onTap: () {
-                Navigator.pushNamed(
+              onTap: () async {
+                final noticeId = notice['id'];
+                final incrementUrl = Uri.parse(
+                    "http://192.168.0.83:8081/api/notices/$noticeId/views"
+                );
+
+                // 1) 서버에 조회수 올리기 시도
+                try {
+                  final incRes = await http.patch(incrementUrl);
+                  if (incRes.statusCode >= 200 && incRes.statusCode < 400) {
+                    // 로컬에선 성공 처리된 것으로 간주
+                    setState(() {
+                      notice['views'] = (notice['views'] as int) + 1;
+                    });
+                  } else {
+                    print("조회수 증가 실패: ${incRes.statusCode}\n${incRes.body}");
+                  }
+                } catch (e) {
+                  print("조회수 증가 예외: $e");
+                }
+
+                // 2) 상세 페이지로 이동 (돌아와도 목록을 다시 불러오지 않음)
+                await Navigator.pushNamed(
                   context,
                   '/notices-detail',
                   arguments: notice,
                 );
+                // ★ fetchNotices(); 호출 제거!
               },
             ),
           );

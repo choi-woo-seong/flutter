@@ -1,75 +1,99 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 
-class PromotionSection extends StatelessWidget {
+class PromotionSection extends StatefulWidget {
+  @override
+  _PromotionSectionState createState() => _PromotionSectionState();
+}
+
+class _PromotionSectionState extends State<PromotionSection> {
+  final PageController _pageController = PageController();
+  int _currentPage = 0;
+  late Timer _timer;
+
+  final List<String> _images = [
+    'assets/images/img.png',
+    'assets/images/img_1.png',
+    'assets/images/img_2.png',
+    'assets/images/img_3.png',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(Duration(seconds: 3), (Timer timer) {
+      if (_currentPage < _images.length - 1) {
+        _currentPage++;
+        _pageController.animateToPage(
+          _currentPage,
+          duration: Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      } else {
+        _pageController.animateToPage(
+          0,
+          duration: Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+        _currentPage = 0;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: EdgeInsets.all(16),
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Color(0xFFFFF9C4), // 연노랑 배경
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // 왼쪽 텍스트 + 태그
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: [
-                    _buildTag('요양 고민', Colors.orange),
-                    _buildTag('상담', Colors.pink),
-                    _buildTag('정보', Colors.blue),
-                  ],
-                ),
-                SizedBox(height: 12),
-                Text(
-                  '함께 소통해요!',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
+    return Column(
+      children: [
+        Container(
+          height: 160,
+          margin: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            color: Colors.grey[200],
           ),
-
-          // 오른쪽 이미지 (사이즈 제한 + 로딩 에러 대응)
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.asset('assets/images/main.png', // 올바른 파일명 사용
-              width: 100,
-              height: 80,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  width: 100,
-                  height: 80,
-                  color: Colors.grey[300],
-                  alignment: Alignment.center,
-                  child: Icon(Icons.error, color: Colors.red),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: PageView.builder(
+              controller: _pageController,
+              itemCount: _images.length,
+              onPageChanged: (index) {
+                setState(() => _currentPage = index);
+              },
+              itemBuilder: (context, index) {
+                return Image.asset(
+                  _images[index],
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) =>
+                      Center(child: Icon(Icons.broken_image)),
                 );
               },
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTag(String label, Color color) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(color: Colors.white, fontSize: 12),
-      ),
+        ),
+        SizedBox(height: 4),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(_images.length, (index) {
+            return AnimatedContainer(
+              duration: Duration(milliseconds: 300),
+              margin: EdgeInsets.symmetric(horizontal: 4),
+              width: _currentPage == index ? 10 : 8,
+              height: _currentPage == index ? 10 : 8,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _currentPage == index ? Colors.blue : Colors.grey,
+              ),
+            );
+          }),
+        ),
+      ],
     );
   }
 }
